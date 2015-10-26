@@ -5,7 +5,7 @@
 		<value></value>
 		<description>
 			The HDFS address that stores temporary file like:
-			hdfs://sandking04:9000/home/hadoop/mpi-tmp
+			hdfs://10.1.255.127:8040/home/hadoop/mpi-tmp
 		</description>
 	</property>
 	<property>

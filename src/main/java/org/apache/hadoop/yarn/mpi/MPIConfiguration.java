@@ -79,7 +79,7 @@ public class MPIConfiguration extends YarnConfiguration {
 
   public static final String MPI_SSH_AUTHORIZED_KEYS_PATH = "yarn.mpi.ssh.authorizedkeys.path";
 
-  public static final String DEFAULT_MPI_SCRATCH_DIR = "hdfs://hdpnn/group/dc/mpi-tmp";
+  public static final String DEFAULT_MPI_SCRATCH_DIR = "hdfs://10.1.255.126:8020/group/dc/mpi-tmp";
 
   public static final String[] DEFAULT_MPI_APPLICATION_CLASSPATH = {
     "$HADOOP_CONF_DIR", "$HADOOP_COMMON_HOME/share/hadoop/common/*",
