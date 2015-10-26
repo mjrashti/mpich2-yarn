@@ -2,15 +2,15 @@
 <configuration>
 	<property>
 		<name>yarn.mpi.scratch.dir</name>
-		<value></value>
+		<value>/nn/mpi-tmp</value>
 		<description>
 			The HDFS address that stores temporary file like:
-			hdfs://10.1.255.127:8040/home/hadoop/mpi-tmp
+			hdfs://10.1.255.127:8040/nn/mpi-tmp
 		</description>
 	</property>
 	<property>
 		<name>yarn.mpi.ssh.authorizedkeys.path</name>
-		<value>/home/hadoop/.ssh/authorized_keys</value>
+		<value>/root/.ssh/authorized_keys</value>
 		<description>
 			MPICH-YARN will create a temporary RSA key pair for
 			password-less login and automatically configure it. 
