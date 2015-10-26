@@ -76,6 +76,7 @@ MPDListener {
   @Override
   public void reportStatus(ContainerId containerId, MPDStatus containerStatus) {
     LOG.info("Try to report status.");
+    
     try {
       LOG.info(containerId.toString() + " report status " + containerStatus);
       containerToStatus.put(containerId, containerStatus);
