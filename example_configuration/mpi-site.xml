@@ -2,10 +2,10 @@
 <configuration>
 	<property>
 		<name>yarn.mpi.scratch.dir</name>
-		<value>/nn/mpi-tmp</value>
+		<value>hdfs://10.1.255.126:8020/nn/mpi-tmp</value>
 		<description>
 			The HDFS address that stores temporary file like:
-			hdfs://10.1.255.127:8040/nn/mpi-tmp
+			hdfs://10.1.255.126:8020/nn/mpi-tmp
 		</description>
 	</property>
 	<property>

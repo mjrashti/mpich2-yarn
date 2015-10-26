@@ -459,11 +459,9 @@ public class Container {
       }
     } catch (Exception e) {
       LOG.error("Error executing MPI task in container.");
-      System.out.println("Exception: "+e.toString());
-      System.out.println("Exception: "+e.toString());	
       e.printStackTrace();
       container.getProtocol().reportStatus(container.getContainerId(),
-          MPDStatus.ERROR_FINISHED3);
+          MPDStatus.ERROR_FINISHED3,e);
     }
   }
 

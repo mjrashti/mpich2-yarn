@@ -22,6 +22,8 @@ public interface MPDProtocol extends VersionedProtocol {
    * @param containerStatus
    *          The current container's status
    */
+  /*MJR added the exp argument*/
+  void reportStatus(ContainerId containerId, MPDStatus containerStatus,Exception exp);
   void reportStatus(ContainerId containerId, MPDStatus containerStatus);
 
   /**

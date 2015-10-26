@@ -74,9 +74,16 @@ MPDListener {
   }
 
   @Override
-  public void reportStatus(ContainerId containerId, MPDStatus containerStatus) {
+  public void reportStatus(ContainerId containerId, MPDStatus containerStatus){
+	this.reportStatus(containerId,containerStatus,null);
+  }
+
+  @Override
+  public void reportStatus(ContainerId containerId, MPDStatus containerStatus,Exception exp) {
     LOG.info("Try to report status.");
-    
+    /*MJR added this condition*/
+    if(exp != null)
+	exp.printStackTrace();
     try {
       LOG.info(containerId.toString() + " report status " + containerStatus);
       containerToStatus.put(containerId, containerStatus);
