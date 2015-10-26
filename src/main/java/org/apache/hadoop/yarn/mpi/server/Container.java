@@ -446,16 +446,14 @@ public class Container {
             container.upload();
           }
         } else {
-	  LOG.error("Container init failed!");
           container.getProtocol().reportStatus(container.getContainerId(),
               MPDStatus.ERROR_FINISHED);
           LOG.error("downlaod failed!");
           System.exit(-1);
         }
       } else {
-	LOG.error("Container init failed!");
         container.getProtocol().reportStatus(container.getContainerId(),
-            MPDStatus.ERROR_FINISHED);
+            MPDStatus.ERROR_FINISHED2);
         LOG.error("Container init failed!");
         System.exit(-1);
       }
