@@ -446,18 +446,21 @@ public class Container {
             container.upload();
           }
         } else {
+	  LOG.info("downlaod failed!");
           container.getProtocol().reportStatus(container.getContainerId(),
               MPDStatus.ERROR_FINISHED);
           LOG.error("downlaod failed!");
           System.exit(-1);
         }
       } else {
+	LOG.info("Container init failed!");
         container.getProtocol().reportStatus(container.getContainerId(),
             MPDStatus.ERROR_FINISHED);
         LOG.error("Container init failed!");
         System.exit(-1);
       }
     } catch (Exception e) {
+      LOG.info("Error executing MPI task in container.");
       LOG.error("Error executing MPI task in container.");
       e.printStackTrace();
       container.getProtocol().reportStatus(container.getContainerId(),
