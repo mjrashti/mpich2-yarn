@@ -118,7 +118,7 @@ MPDListener {
     }
     while (i.hasNext()) {
       Entry<ContainerId, MPDStatus> e = i.next();
-      if (e.getValue().equals(MPDStatus.ERROR_FINISHED)) {
+      if (e.getValue().equals(MPDStatus.ERROR_FINISHED1) || e.getValue().equals(MPDStatus.ERROR_FINISHED2) || e.getValue().equals(MPDStatus.ERROR_FINISHED3)) {
         throw new MPDException(String.format("Container %s error", e.getKey()
             .toString()));
       } else if (e.getValue().equals(MPDStatus.DISCONNECTED)) {
@@ -179,7 +179,7 @@ MPDListener {
         .iterator();
     while (i.hasNext()) {
       Entry<ContainerId, MPDStatus> e = i.next();
-      if (e.getValue().equals(MPDStatus.ERROR_FINISHED)) {
+      if (e.getValue().equals(MPDStatus.ERROR_FINISHED1) || e.getValue().equals(MPDStatus.ERROR_FINISHED2) || e.getValue().equals(MPDStatus.ERROR_FINISHED3)) {
         throw new MPDException(String.format("Container %s error", e.getKey()
             .toString()));
       } else if (e.getValue().equals(MPDStatus.DISCONNECTED)) {

@@ -447,7 +447,7 @@ public class Container {
           }
         } else {
           container.getProtocol().reportStatus(container.getContainerId(),
-              MPDStatus.ERROR_FINISHED);
+              MPDStatus.ERROR_FINISHED1);
           LOG.error("downlaod failed!");
           System.exit(-1);
         }
@@ -461,7 +461,7 @@ public class Container {
       LOG.error("Error executing MPI task in container.");
       e.printStackTrace();
       container.getProtocol().reportStatus(container.getContainerId(),
-          MPDStatus.ERROR_FINISHED);
+          MPDStatus.ERROR_FINISHED3);
     }
   }
 
