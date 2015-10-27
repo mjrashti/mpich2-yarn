@@ -461,7 +461,7 @@ public class Container {
       LOG.error("Error executing MPI task in container.");
       e.printStackTrace();
       container.getProtocol().reportStatus(container.getContainerId(),
-          MPDStatus.ERROR_FINISHED3,e);
+          MPDStatus.ERROR_FINISHED3,e.getMessage());
     }
   }
 

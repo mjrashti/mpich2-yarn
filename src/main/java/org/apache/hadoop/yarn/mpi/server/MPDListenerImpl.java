@@ -75,15 +75,16 @@ MPDListener {
 
   @Override
   public void reportStatus(ContainerId containerId, MPDStatus containerStatus){
+	LOG.info("Calling report status with no exception.");
 	this.reportStatus(containerId,containerStatus,null);
   }
 
   @Override
-  public void reportStatus(ContainerId containerId, MPDStatus containerStatus,Exception exp) {
+  public void reportStatus(ContainerId containerId, MPDStatus containerStatus,String expMsg) {
     LOG.info("Try to report status.");
     /*MJR added this condition*/
-    if(exp != null)
-	exp.printStackTrace();
+    if(expMsg != null)
+	LOG.info("Upsream exception: "+expMsg);
     else
 	LOG.info("No exception reported upstream.");
     try {
