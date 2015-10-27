@@ -441,9 +441,9 @@ public class Container {
           LOG.info("download successfully");
           container.copyMPIExecutable();
           LOG.info("copy mpi program successfully");
-          Boolean runSuccess = container.run();
 	  throw new Exception("Test Exception\n");
-	  /*
+          /*Boolean runSuccess = container.run();
+	  
           if (runSuccess) {
             container.upload();
           }*/
