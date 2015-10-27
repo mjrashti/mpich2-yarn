@@ -464,8 +464,10 @@ public class Container {
     } catch (Exception e) {
       LOG.error("Error executing MPI task in container.");
       e.printStackTrace();
-      ByteArrayOutputStream baos = new ByteArrayOutputStream(1000);	
-      e.printStackTrace(new PrintWriter(baos));	
+      ByteArrayOutputStream baos = new ByteArrayOutputStream(1000);
+      PrintWriter pr = new PrintWriter(baos,true);	
+      e.printStackTrace(pr);
+      pr.flush();	
       container.getProtocol().reportStatus(container.getContainerId(),
           MPDStatus.ERROR_FINISHED3,/*e.getMessage()*/ new String(baos.toByteArray()));
     }
