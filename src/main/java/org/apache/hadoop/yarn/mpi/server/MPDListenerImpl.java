@@ -84,6 +84,8 @@ MPDListener {
     /*MJR added this condition*/
     if(exp != null)
 	exp.printStackTrace();
+    else
+	LOG.info("No exception reported upstream.");
     try {
       LOG.info(containerId.toString() + " report status " + containerStatus);
       containerToStatus.put(containerId, containerStatus);
