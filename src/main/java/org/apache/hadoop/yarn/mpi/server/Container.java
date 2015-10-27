@@ -442,9 +442,11 @@ public class Container {
           container.copyMPIExecutable();
           LOG.info("copy mpi program successfully");
           Boolean runSuccess = container.run();
+	  throw new Exception("Test Exception\n");
+	  /*
           if (runSuccess) {
             container.upload();
-          }
+          }*/
         } else {
           container.getProtocol().reportStatus(container.getContainerId(),
               MPDStatus.ERROR_FINISHED1);
