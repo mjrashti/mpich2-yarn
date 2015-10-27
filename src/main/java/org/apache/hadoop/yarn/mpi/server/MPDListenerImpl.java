@@ -84,7 +84,7 @@ MPDListener {
     LOG.info("Try to report status.");
     /*MJR added this condition*/
     if(expMsg != null)
-	LOG.info("Upsream exception: "+expMsg);
+	LOG.info("Upstream exception: "+expMsg);
     else
 	LOG.info("No exception reported upstream.");
     try {

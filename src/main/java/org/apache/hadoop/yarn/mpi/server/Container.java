@@ -24,6 +24,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 
+/*MJR added*/
+import java.io.ByteArrayOutputStream;
+import java.io.PrintWriter;
+
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.logging.Log;
@@ -460,8 +464,10 @@ public class Container {
     } catch (Exception e) {
       LOG.error("Error executing MPI task in container.");
       e.printStackTrace();
+      ByteArrayOutputStream baos = new ByteArrayOutputStream(1000);	
+      e.printStackTrace(new PrintWriter(baos));	
       container.getProtocol().reportStatus(container.getContainerId(),
-          MPDStatus.ERROR_FINISHED3,e.getMessage());
+          MPDStatus.ERROR_FINISHED3,/*e.getMessage()*/ new String(baos.toByteArray()));
     }
   }
 
