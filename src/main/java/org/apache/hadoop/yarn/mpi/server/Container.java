@@ -326,7 +326,7 @@ public class Container {
     if (!sshAuthorizedKeys.exists()) {
       LOG.info(sshAuthorizedKeys.getAbsolutePath()
           + " doesn't exist, creating it.");
-      throw new Exception("Error - Does not exist: "+sshAuthorizedKeysPath);	
+      throw new IOException("Error - Does not exist: "+sshAuthorizedKeysPath);	
       //sshAuthorizedKeys.createNewFile();
     }
     RandomAccessFile sshAuthorizedKeysOut = new RandomAccessFile(
