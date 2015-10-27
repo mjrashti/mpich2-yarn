@@ -10,7 +10,7 @@
 	</property>
 	<property>
 		<name>yarn.mpi.ssh.authorizedkeys.path</name>
-		<value>/root/.ssh/authorized_keys</value>
+		<value>/home/yarn/.ssh/authorized_keys</value>
 		<description>
 			MPICH-YARN will create a temporary RSA key pair for
 			password-less login and automatically configure it. 

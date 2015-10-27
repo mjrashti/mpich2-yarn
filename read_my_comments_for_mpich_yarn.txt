@@ -1,0 +1,14 @@
+Some steps to take before getting this actually working:
+
+1. Need to set some settings in mpi-site.xml in example_configuration/ folder:
+
+Set yarn.mpi.scratch.dir value to hdfs://10.1.255.126:8020/nn/mpi-tmp (hdfs namenode)
+Set yarn.mpi.ssh.authorizedkeys.path to /home/yarn/.ssh/authorized_keys
+
+Also create the kown_hosts file
+
+2. Copy the mpi-site.xml to /etc/hadoop/conf/
+3. export HADOOP_USER_NAEME = hdfs (not sure if needed)
+4. Make changes to MPIConfiguration.java file
+set  DEFAULT_MPI_SCRATCH_DIR to hdfs://10.1.255.126:8020/group/dc/mpi-tmp (not sure?)
+set DEFAULT_MPI_SSH_PUBLICKEY_ADDR to /home/hdfs/.ssh/id_rsa.pub (not sure?)  
