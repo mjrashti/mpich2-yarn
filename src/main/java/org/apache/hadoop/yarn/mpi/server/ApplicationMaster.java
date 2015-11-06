@@ -21,6 +21,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
+//MJR added
+import java.net.InetAddress;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.GnuParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -969,6 +972,10 @@ public class ApplicationMaster extends CompositeService {
     LOG.info("Executing command:" + commandBuilder.toString());
     File mpiPWD = new File(mpiExecDir);
     Runtime rt = Runtime.getRuntime();
+ 
+    //MJr added
+    System.out.println("Running "+commandBuilder.toString()+ " on "+InetAddress.getLocalHost().getHostName());
+
     final Process pc = rt.exec(commandBuilder.toString(), envs, mpiPWD);
 
     Thread stdinThread = new Thread(new Runnable() {

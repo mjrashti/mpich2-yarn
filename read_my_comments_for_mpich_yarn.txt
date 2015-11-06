@@ -8,7 +8,23 @@ Set yarn.mpi.ssh.authorizedkeys.path to /home/yarn/.ssh/authorized_keys
 Also create the kown_hosts file
 
 2. Copy the mpi-site.xml to /etc/hadoop/conf/
-3. export HADOOP_USER_NAEME = hdfs (not sure if needed)
+3. export HADOOP_USER_NAME = hdfs (not sure if a better way does not exist)
 4. Make changes to MPIConfiguration.java file
-set  DEFAULT_MPI_SCRATCH_DIR to hdfs://10.1.255.126:8020/group/dc/mpi-tmp (not sure?)
-set DEFAULT_MPI_SSH_PUBLICKEY_ADDR to /home/hdfs/.ssh/id_rsa.pub (not sure?)  
+  set  DEFAULT_MPI_SCRATCH_DIR to hdfs://10.1.255.126:8020/group/dc/mpi-tmp (not sure?)
+  set DEFAULT_MPI_SSH_PUBLICKEY_ADDR to /home/hdfs/.ssh/id_rsa.pub (not sure?) 
+5. Create /tmp/hadoop-yarn, owned by user yarn. 
+
+
+If other user is going to submit jobs (other than yarn / hdfs), we need to do the
+following (for example when using LinuxContainerExecutor):
+
+As user hdfs run:
+$hdfs dfs -chown -R hdfs:hadoop /nn
+$hdfs dfs -chmod -R 664 /nn
+$hdfs dfs -chmod -R +X /nn
+As root
+$usermod -a -G hadoop <the user to run yarn job>
+
+Also create /home/<the user>/.ssh/authorized_keys
+Also export HADOOP_USER_NAME=<the user>  
+Also in mpi-site.xml, set yarn.mpi.ssh.authorizedkeys.path to /home/<the user>/.ssh/authorized_keys

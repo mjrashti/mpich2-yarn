@@ -87,6 +87,7 @@ MPDListener {
 	LOG.info("Upstream exception: "+expMsg);
     else
 	LOG.info("No exception reported upstream.");
+    	
     try {
       LOG.info(containerId.toString() + " report status " + containerStatus);
       containerToStatus.put(containerId, containerStatus);
