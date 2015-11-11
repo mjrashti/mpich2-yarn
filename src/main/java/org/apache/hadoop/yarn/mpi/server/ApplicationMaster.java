@@ -36,6 +36,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+//MJR added
+import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.service.CompositeService;
 import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.hadoop.yarn.api.protocolrecords.RegisterApplicationMasterResponse;
@@ -97,7 +99,11 @@ public class ApplicationMaster extends CompositeService {
   // Count of failed containers
   private final AtomicInteger numFailedContainers = new AtomicInteger();
   // Container Hosts
-  private final Set<String> containerHosts = new HashSet<String>();
+  /*MJR changed to Vector*/
+  //private final Set<String> containerHosts = new HashSet<String>();
+  private final Vector<String> containerHosts = new Vector<String>();  
+
+
   // location of MPI program on HDFS
   private String hdfsMPIExecLocation;
   // timestamp of MPI program on HDFS
@@ -155,6 +161,12 @@ public class ApplicationMaster extends CompositeService {
   private final FileSystem dfs;
   private MPIAMRMAsyncHandler rmAsyncHandler;
   private MPINMAsyncHandler nmAsyncHandler;
+
+  /*MJR added*/
+  private final Vector<String> containerNames = new Vector<String>();
+  private final String containerInfoFileName  = "containerInfo.txt";
+  private String hdfsContainerInfoAddr;
+  /*END MJR*/
 
   /**
    * @param args
@@ -654,6 +666,10 @@ public class ApplicationMaster extends CompositeService {
   public boolean run() throws IOException, NoSuchAlgorithmException {
     LOG.info("Starting ApplicationMaster");
 
+    /*MJR added*/
+    Map<String, String> envs = System.getenv();
+    /**/
+
     // debug_launch_mpiexec();
 
     // Connect to ResourceManager
@@ -709,6 +725,16 @@ public class ApplicationMaster extends CompositeService {
     // the files which need to be downloaded
     ConcurrentHashMap<Integer, List<FileSplit>> splits = getFileSplit(
         fileDownloads, fileToLocation, distinctContainers);
+
+    /*MJR added*/
+    containerNames.ensureCapacity(distinctContainers.size());
+    FileWriter containerInfoFile = new FileWriter(containerInfoFileName);
+    assert (envs.containsKey(MPIConstants.MPITEMPLOCATION));
+    String hdfsTempAddr = envs.get(MPIConstants.MPITEMPLOCATION);
+    containerInfoFile.write(hdfsTempAddr+"\n");	
+    containerInfoFile.write(" "+distinctContainers.size()+"\n");
+    /*END MJR*/
+
     for (Container allocatedContainer : distinctContainers) {
       String host = allocatedContainer.getNodeId().getHost();
       containerHosts.add(host);
@@ -722,11 +748,33 @@ public class ApplicationMaster extends CompositeService {
           + allocatedContainer.getResource().getMemory());
 
       Boolean result = launchContainerAsync(allocatedContainer,
-          splits.get(Integer.valueOf(allocatedContainer.getId().getId())),
+          splits.get(Integer.valueOf(allocatedContainer.getId().getId())), /*MJR FIXME: getId.getId  is deprecated, use long getContainerId*/
           resultToDestination.values());
 
       mpdListener.addContainer(new ContainerId(allocatedContainer.getId()));
+      /*MJR added - creating a list of container names, to be used for cgroup assignment*/
+	containerNames.add(allocatedContainer.getId().toString());
+	containerInfoFile.write(allocatedContainer.getId().toString()+"\n");
+	containerInfoFile.write(host+"\n");
+      /*END MJR*/	
     }
+    /*MJR added*/
+	//debug
+	this.appendMsg("Container Names: "+containerNames.toString());
+	this.appendMsg("Container Hosts: "+containerHosts.toString());
+	containerInfoFile.flush();
+	containerInfoFile.close();
+	Path containrInfoSrc = new Path(containerInfoFileName);
+	hdfsContainerInfoAddr = hdfsTempAddr+"/"+containerInfoFileName;
+	Path containrInfoDst = new Path(hdfsContainerInfoAddr);
+	dfs.copyFromLocalFile(false, true, containrInfoSrc, containrInfoDst);
+	FileStatus containerFileStatus = dfs.getFileStatus(containrInfoDst);
+	File cif = new File(containerInfoFileName);
+	cif.deleteOnExit();
+	this.appendMsg("copied info file to "+hdfsContainerInfoAddr);		
+	
+    /**/
+
 
     boolean isSuccess = true;
     String diagnostics = null;
@@ -738,7 +786,10 @@ public class ApplicationMaster extends CompositeService {
       }
       this.appendMsg("all containers are launched successfully, executing mpiexec...");
       LOG.info("all containers are launched successfully, executing mpiexec...");
-      boolean mpiExecSuccess = launchMpiExec();
+
+	//MJR changed
+//      boolean mpiExecSuccess = launchMpiExec();
+	boolean mpiExecSuccess = launchMpiExecWrapper();
 
       LOG.info("mpiexec completed, wait for daemons doing clean-ups.");
       mpdListener.setAmFinished();
@@ -1019,6 +1070,116 @@ public class ApplicationMaster extends CompositeService {
     }
     return false;
   }
+
+  /*MJR added this function*/ 
+  private boolean launchMpiExecWrapper() throws IOException {
+    LOG.info("Launching mpiexec from the Application Master...");
+    Map<String, String> env = System.getenv();
+
+    StringBuilder commandBuilder = new StringBuilder(
+        "mpiexec -launcher ssh -hosts ");
+    Set<String> hosts = hostToProcNum.keySet();
+    boolean first = true;
+    for (String host : hosts) {
+      if (first) {
+        first = false;
+      } else {
+        commandBuilder.append(",");
+      }
+      commandBuilder.append(host);
+      commandBuilder.append(":");
+      commandBuilder.append(hostToProcNum.get(host));
+    }
+
+    commandBuilder.append(" ");
+
+    String wrapperPath = env.get(MPIConstants.AMJARLOCATION);//JobConf.findContainingJar(ApplicationMaster.class);
+    this.appendMsg("Wrapper path: "+wrapperPath);
+    int idx = wrapperPath.indexOf(MPIConstants.TARGETJARNAME);
+    commandBuilder.append(wrapperPath.substring(0,idx-1));
+
+    commandBuilder.append("/container_wrapper ");
+    commandBuilder.append(hdfsContainerInfoAddr+" ");
+    commandBuilder.append(mpiExecDir); 
+    commandBuilder.append("/MPIExec");
+    	
+    if (!mpiOptions.isEmpty()) {
+      commandBuilder.append(" ");
+      // replace the fileName with the hdfs path
+      Set<String> fileNames = fileToDestination.keySet();
+      Iterator<String> itNames = fileNames.iterator();
+      while (itNames.hasNext()) {
+        String fileName = itNames.next();
+        mpiOptions = mpiOptions.replaceAll(fileName,
+            this.fileToDestination.get(fileName));
+      }
+      // replace the result with container local location
+      Set<String> resultNames = resultToDestination.keySet();
+      Iterator<String> itResult = resultNames.iterator();
+      while (itResult.hasNext()) {
+        String resultName = itResult.next();
+        mpiOptions = mpiOptions.replaceAll(resultName,
+            resultToDestination.get(resultName).getContainerLocal());
+      }
+      LOG.info(String.format("mpi options:", mpiOptions));
+
+      commandBuilder.append(mpiOptions);
+    }
+    //TODO Here we canceled mandatory host key checking, and may have potential risk for middle-man-attack
+    String[] envs = {"PATH="+System.getenv("PATH"), "HYDRA_LAUNCHER_EXTRA_ARGS=-o StrictHostKeyChecking=no -i " + keypair_position};
+    LOG.info("Executing command:" + commandBuilder.toString());
+    File mpiPWD = new File(mpiExecDir);
+    Runtime rt = Runtime.getRuntime();
+ 
+    //MJR added
+    this.appendMsg("Running "+commandBuilder.toString()+ " on "+InetAddress.getLocalHost().getHostName());
+
+    final Process pc = rt.exec(commandBuilder.toString(), envs, mpiPWD);
+
+    Thread stdinThread = new Thread(new Runnable() {
+      @Override
+      public void run() {
+        Scanner pcStdout = new Scanner(pc.getInputStream());
+        while (pcStdout.hasNextLine()) {
+          String line = "[stdout] " + pcStdout.nextLine();
+          LOG.info(line);
+          appendMsg(line);
+        }
+        pcStdout.close();
+      }
+    });
+    stdinThread.start();
+
+    Thread stderrThread = new Thread(new Runnable() {
+      @Override
+      public void run() {
+        Scanner pcStderr = new Scanner(pc.getErrorStream());
+        while (pcStderr.hasNextLine()) {
+          String line = "[stderr] " + pcStderr.nextLine();
+          LOG.info(line);
+          appendMsg(line);
+        }
+        pcStderr.close();
+      }
+    });
+    stderrThread.start();
+
+    try {
+      int ret = pc.waitFor();
+
+      if (ret != 0) {
+        return false;
+      } else {
+        return true;
+      }
+    } catch (InterruptedException e) {
+      LOG.error("mpiexec Thread is nterruptted!", e);
+    }
+    return false;
+  }
+
+  /**
+   * Async Method telling NMClientAsync to launch specific container
 
   /**
    * Async Method telling NMClientAsync to launch specific container

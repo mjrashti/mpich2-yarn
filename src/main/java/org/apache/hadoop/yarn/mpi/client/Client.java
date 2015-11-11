@@ -341,7 +341,7 @@ public class Client {
 
     appMasterJar = JobConf.findContainingJar(ApplicationMaster.class);
     LOG.info("Application Master's jar is " + appMasterJar);
-
+    
     return true;
   }
 
@@ -504,6 +504,11 @@ public class Client {
      // resource for the
      // eventual containers that will be launched to execute the shell scripts
      env.put(MPIConstants.MPIEXECLOCATION, mpiAppDst.toUri().toString());
+     /*MJR added*/
+     env.put(MPIConstants.MPITEMPLOCATION,Utilities.getAppFile(conf, appName, appId, "").toUri().toString());
+     env.put(MPIConstants.AMJARLOCATION,JobConf.findContainingJar(ApplicationMaster.class));
+     /*END MJR*/	
+
      env.put(MPIConstants.MPIEXECTIMESTAMP,
          Long.toString(mpiAppFileStatus.getModificationTime()));
      env.put(MPIConstants.MPIEXECLEN, Long.toString(mpiAppFileStatus.getLen()));

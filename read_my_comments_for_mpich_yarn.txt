@@ -16,7 +16,7 @@ Also create the kown_hosts file
 
 
 If other user is going to submit jobs (other than yarn / hdfs), we need to do the
-following (for example when using LinuxContainerExecutor):
+following on all nodes (for example when using LinuxContainerExecutor):
 
 As user hdfs run:
 $hdfs dfs -chown -R hdfs:hadoop /nn
@@ -25,6 +25,10 @@ $hdfs dfs -chmod -R +X /nn
 As root
 $usermod -a -G hadoop <the user to run yarn job>
 
-Also create /home/<the user>/.ssh/authorized_keys
-Also export HADOOP_USER_NAME=<the user>  
-Also in mpi-site.xml, set yarn.mpi.ssh.authorizedkeys.path to /home/<the user>/.ssh/authorized_keys
+Also do the following:
+$mkdir /tmp/hadoop-<the user>
+$sudo chown mrashti:hadoop /tmp/hadoop-mrashti
+- create /home/<the user>/.ssh/authorized_keys
+$export HADOOP_USER_NAME=<the user>  
+- in mpi-site.xml, set yarn.mpi.ssh.authorizedkeys.path to /home/<the user>/.ssh/authorized_keys
+
