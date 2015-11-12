@@ -36,8 +36,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-//MJR added
-import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.service.CompositeService;
 import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.hadoop.yarn.api.protocolrecords.RegisterApplicationMasterResponse;
@@ -90,6 +88,10 @@ public class ApplicationMaster extends CompositeService {
   private int numTotalContainers = 1;
   // Memory to request for the container on which the shell command will run
   private int containerMemory = 10;
+  /*MJR added*/
+  // Virtual cores to assign to each container and its affiliated MPI processes (i.e., on the same node)
+  private int containerVCores = 1;
+  /**/
   // Priority of the request
   private int requestPriority;
   // Simple flag to denote whether all works is done
@@ -250,6 +252,10 @@ public class ApplicationMaster extends CompositeService {
         "App Attempt ID. Not to be used unless for testing purposes");
     opts.addOption("container_memory", true,
         "Amount of memory in MB to be requested to run the shell command");
+    /*MJR added*/
+    opts.addOption("container_vcores", true,
+        "Number of virtual cores to be requested to run the shell command");
+    /*END MJR*/
     opts.addOption("num_containers", true,
         "No. of containers on which the shell command needs to be executed");
     opts.addOption("priority", true, "Application Priority. Default 0");
@@ -411,7 +417,11 @@ public class ApplicationMaster extends CompositeService {
     containerMemory = Integer.parseInt(cliParser.getOptionValue(
         "container_memory", "10"));
     LOG.info("Container memory is " + containerMemory + " MB");
-
+    /*MJR added*/
+    containerVCores = Integer.parseInt(cliParser.getOptionValue(
+        "container_vcores", "1"));
+    LOG.info("Container virtual core count is " + containerVCores);
+    /**/
     requestPriority = Integer.parseInt(cliParser
         .getOptionValue("priority", "0"));
 
@@ -693,6 +703,15 @@ public class ApplicationMaster extends CompositeService {
             + ", specified=" + containerMemory + ", max=" + maxMem);
         containerMemory = maxMem;
       }
+      /*MJR added*/
+      int maxVCores = response.getMaximumResourceCapability().getVirtualCores();
+      LOG.info("Max VCores capabililty of resources in this cluster " + maxVCores);
+      if (containerVCores > maxVCores) {
+        LOG.info("Container vcores specified above max threshold of cluster. Using max value."
+            + ", specified=" + containerVCores + ", max=" + maxVCores);
+        containerVCores = maxVCores;
+      }
+      /**/
     } catch (Exception e) {
       LOG.error("Error registering to ResourceManger.");
       e.printStackTrace();
@@ -759,9 +778,9 @@ public class ApplicationMaster extends CompositeService {
       /*END MJR*/	
     }
     /*MJR added*/
-	//debug
+	/*debug
 	this.appendMsg("Container Names: "+containerNames.toString());
-	this.appendMsg("Container Hosts: "+containerHosts.toString());
+	this.appendMsg("Container Hosts: "+containerHosts.toString());*/
 	containerInfoFile.flush();
 	containerInfoFile.close();
 	Path containrInfoSrc = new Path(containerInfoFileName);
@@ -771,9 +790,10 @@ public class ApplicationMaster extends CompositeService {
 	FileStatus containerFileStatus = dfs.getFileStatus(containrInfoDst);
 	File cif = new File(containerInfoFileName);
 	cif.deleteOnExit();
-	this.appendMsg("copied info file to "+hdfsContainerInfoAddr);		
+	/*debug
+	this.appendMsg("copied info file to "+hdfsContainerInfoAddr);*/
 	
-    /**/
+    /*END MJR*/
 
 
     boolean isSuccess = true;
@@ -787,7 +807,7 @@ public class ApplicationMaster extends CompositeService {
       this.appendMsg("all containers are launched successfully, executing mpiexec...");
       LOG.info("all containers are launched successfully, executing mpiexec...");
 
-	//MJR changed
+	//MJR changed to use a wrapper program, in order to apply cgroups limits to the main mpi program
 //      boolean mpiExecSuccess = launchMpiExec();
 	boolean mpiExecSuccess = launchMpiExecWrapper();
 
@@ -909,7 +929,9 @@ public class ApplicationMaster extends CompositeService {
     // requirements
     Resource capability = Records.newRecord(Resource.class);
     capability.setMemory(containerMemory);
-    capability.setVirtualCores(1);
+    /*MJR changed*/
+    //capability.setVirtualCores(1);
+    capability.setVirtualCores(containerVCores);
 
     ContainerRequest request = new ContainerRequest(capability, null, null, pri);
     LOG.info("Requested container ask: " + request.toString());

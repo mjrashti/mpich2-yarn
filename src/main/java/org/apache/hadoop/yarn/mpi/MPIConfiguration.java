@@ -13,6 +13,9 @@ public class MPIConfiguration extends YarnConfiguration {
   public static final String MPI_EXEC_LOCATION = "yarn.mpi.exec.location";
 
   public static final String MPI_CONTAINER_MEMORY = "yarn.mpi.container.memory";
+  /*MJR added*/
+  public static final String MPI_CONTAINER_VCORES = "yarn.mpi.container.vcores";
+  /**/
 
   public static final String MPI_AM_PRIORITY = "yarn.mpi.appmaster.priority";
 

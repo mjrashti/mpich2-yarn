@@ -8,6 +8,8 @@ EXE=	container_wrapper\
 	cpi
 	
 all: $(EXE)
+	@echo "Make completed. Now run make install."
+install:
 	@cp container_wrapper ../target/
 
 %:	

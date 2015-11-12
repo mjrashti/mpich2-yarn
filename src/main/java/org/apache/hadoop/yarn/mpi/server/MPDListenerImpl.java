@@ -75,21 +75,21 @@ MPDListener {
 
   @Override
   public void reportStatus(ContainerId containerId, MPDStatus containerStatus){
-	LOG.info("Calling report status with no exception.");
+	/*LOG.info("Calling report status with no exception.");*/
 	this.reportStatus(containerId,containerStatus,null);
   }
 
   @Override
   public void reportStatus(ContainerId containerId, MPDStatus containerStatus,String expMsg) {
     LOG.info("Try to report status.");
-    /*MJR added this condition*/
+    /*MJR added this condition for debug
     if(expMsg != null)
 	LOG.info("Upstream exception: "+expMsg);
     else
 	LOG.info("No exception reported upstream.");
-    	
+    */	
     try {
-      LOG.info(containerId.toString() + " report status " + containerStatus);
+      /*LOG.info(containerId.toString() + " report status " + containerStatus);*/
       containerToStatus.put(containerId, containerStatus);
       // TODO We need a state machine here to handle port in use and crash
       if (containerStatus.equals(MPDStatus.MPD_CRASH)) {

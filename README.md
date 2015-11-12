@@ -30,6 +30,14 @@ To compile MPICH-yarn, first you need to have maven installed. Then
 type command at source folder:
 
 	mvn clean package -Dmaven.test.skip=true
+
+#MJR added for resource enforcement support
+	To be able to enforce memory and cpu limitations through cgroups on MPI apps,
+	need to compile the container_wrapper program:
+
+	cd ./examples
+	make clean
+	make
 	
 You need to ensure Internet connected as maven needs to download plugins
 on the maven repository, this may take minutes.

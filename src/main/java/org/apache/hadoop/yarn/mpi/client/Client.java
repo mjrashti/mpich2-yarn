@@ -88,6 +88,10 @@ public class Client {
   // Amt of memory to request for container in which shell script will be
   // executed
   private int containerMemory = 10;
+  /*MJR added*/
+  // Virtual cores to assign to each container and its affiliated MPI processes (i.e., on the same node)
+  private int containerVCores = 1;
+  /**/
   // No. of containers in which the shell script needs to be executed
   private int numContainers = 1;
   // Start time for client
@@ -182,6 +186,9 @@ public class Client {
   public void reloadConfiguration() {
     amMemory = conf.getInt(MPIConfiguration.MPI_EXEC_LOCATION, 64);
     containerMemory = conf.getInt(MPIConfiguration.MPI_CONTAINER_MEMORY, 64);
+    /*MJR added*/
+    containerVCores = conf.getInt(MPIConfiguration.MPI_CONTAINER_VCORES, 1);
+    /**/
     amPriority = conf.getInt(MPIConfiguration.MPI_AM_PRIORITY, 0);
     containerPriority = conf.getInt(MPIConfiguration.MPI_CONTAINER_PRIORITY, 0);
     amQueue = conf.get(MPIConfiguration.MPI_QUEUE);
@@ -210,6 +217,10 @@ public class Client {
         "Amount of memory in MB to be requested to run the application master");
     opts.addOption("m", "container-memory", true,
         "Amount of memory in MB to be requested to run the shell command");
+    /*MJR added*/	
+    opts.addOption("c", "container-vcores", true,
+        "Number of virtual cores to be requested to run the shell command");
+    /*END MJR*/
     opts.addOption("a", "mpi-application", true,
         "Location of the mpi application to be executed");
     opts.addOption("o", "mpi-options", true, "Options for mpi program");
@@ -286,7 +297,17 @@ public class Client {
           "Invalid memory specified for containers, exiting."
               + "Specified memory=" + containerMemory);
     }
-
+    /*MJR added*/
+    if (cliParser.hasOption("container-vcores")) {
+      containerVCores = Integer.parseInt(cliParser.getOptionValue(
+          "container-vcores", "1"));
+    }
+    if (containerVCores <= 0) {
+      throw new IllegalArgumentException(
+          "Invalid core count specified for containers, exiting."
+              + "Specified core count=" + containerVCores);
+    }
+    /**/
     if (cliParser.hasOption("priority")) {
       amPriority = Integer.parseInt(cliParser.getOptionValue("priority", "0"));
     }
@@ -426,6 +447,11 @@ public class Client {
     // LOG.info("Min mem capabililty of resources in this cluster " + minMem);
     LOG.info("Max mem capabililty of resources in this cluster " + maxMem);
 
+    /*MJR added*/
+    int maxVCores = newApp.getMaximumResourceCapability().getVirtualCores();
+    LOG.info("Max vcore capabililty of resources in this cluster " + maxVCores);
+    /**/
+
     // A resource ask has to be at least the minimum of the capability of the
     // cluster,
     // the value has to be a multiple of the min value and cannot exceed the
@@ -446,6 +472,14 @@ public class Client {
            + "(yarn.scheduler.maximum-allocation-mb) of the cluster");
        return false;
      }
+
+     /*MJR added*/  
+     if (containerVCores > maxVCores) {
+       LOG.error("Container vcores specified above the max threhold "
+           + "of the cluster");
+       return false;
+     }
+     /**/
 
      // Create launch context for app master
      LOG.info("Setting up application submission context for ASM");
@@ -595,6 +629,9 @@ public class Client {
      vargs.add("org.apache.hadoop.yarn.mpi.server.ApplicationMaster");
      // Set params for Application Master
      vargs.add("--container_memory " + String.valueOf(containerMemory));
+     /*MJR added*/
+     vargs.add("--container_vcores " + String.valueOf(containerVCores));
+     /**/
      vargs.add("--num_containers " + String.valueOf(numContainers));
      vargs.add("--priority " + String.valueOf(containerPriority));
      if (debugFlag) {
