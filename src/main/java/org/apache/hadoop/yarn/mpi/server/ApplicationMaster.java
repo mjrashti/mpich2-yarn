@@ -807,7 +807,8 @@ public class ApplicationMaster extends CompositeService {
       this.appendMsg("all containers are launched successfully, executing mpiexec...");
       LOG.info("all containers are launched successfully, executing mpiexec...");
 
-	//MJR changed to use a wrapper program, in order to apply cgroups limits to the main mpi program
+	//MJR changed to use a wrapper program, in order to apply cgroups limits to the main 
+	//mpi program
 //      boolean mpiExecSuccess = launchMpiExec();
 	boolean mpiExecSuccess = launchMpiExecWrapper();
 

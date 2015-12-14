@@ -1,4 +1,4 @@
-Some steps to take before getting this actually working:
+Some steps to take before getting smart actually working with mpich2-yarn:
 
 1. Need to set some settings in mpi-site.xml in example_configuration/ folder:
 
@@ -26,9 +26,21 @@ As root
 $usermod -a -G hadoop <the user to run yarn job>
 
 Also do the following:
-$mkdir /tmp/hadoop-<the user>
-$sudo chown mrashti:hadoop /tmp/hadoop-mrashti
+$mkdir /tmp/hadoop-<the user> , where <the user> could be a username such as mrashti.
+$sudo chown <the user>:hadoop /tmp/hadoop-<the user>
 - create /home/<the user>/.ssh/authorized_keys
 $export HADOOP_USER_NAME=<the user>  
 - in mpi-site.xml, set yarn.mpi.ssh.authorizedkeys.path to /home/<the user>/.ssh/authorized_keys
+
+Also make sure mpich2 is in the path:
+export PATH=/opt/mpich-3.1.2_install/bin/:$PATH
+
+And here is an example of running logstic regression in Smart over Yarn:
+(/data/home/mrashti/projects/informer_hpcc/Smart/examples/offline_analytics)
+
+yarn jar ../../../mpich2-yarn/target/mpich2-yarn-1.0-SNAPSHOT.jar -a ./logistic_regression_offline -M 1024 -m 1024 -n 2 -c 2
+
+If an error occurs and application does not finish successfully, inspect Hadoop logs at:
+
+http://compute-1-1.local:8088/cluster
 

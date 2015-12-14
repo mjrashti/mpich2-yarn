@@ -10,6 +10,7 @@ int main(int argc, char *argv[]){
 	MPI_Barrier(MPI_COMM_WORLD);
 	sleep(atoi(argv[1]));
 	printf("MPI initialized successfully. I am pid %d, rank %d out of %d\n",getpid(),rank,nprocs);
+	while(1);
 	MPI_Finalize();
 	return 0;
 }
