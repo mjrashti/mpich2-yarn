@@ -8,6 +8,8 @@ public class MPIConfiguration extends YarnConfiguration {
   private static final String MPI_DEFAULT_XML_FILE = "mpi-default.xml";
 
   private static final String MPI_SITE_XML_FILE = "mpi-site.xml";
+  //MJR added
+  private static final String YARN_SITE_XML_FILE = "yarn-site.xml";
 
   // Here, I do not like the PREFIX+FEATURE style, because it's not good for searching.
   public static final String MPI_EXEC_LOCATION = "yarn.mpi.exec.location";
@@ -15,6 +17,7 @@ public class MPIConfiguration extends YarnConfiguration {
   public static final String MPI_CONTAINER_MEMORY = "yarn.mpi.container.memory";
   /*MJR added*/
   public static final String MPI_CONTAINER_VCORES = "yarn.mpi.container.vcores";
+  public static final String YARN_NM_CE_CG_STRICT_USAGE = "yarn.nodemanager.linux-container-executor.cgroups.strict-resource-usage";
   /**/
 
   public static final String MPI_AM_PRIORITY = "yarn.mpi.appmaster.priority";
@@ -94,6 +97,8 @@ public class MPIConfiguration extends YarnConfiguration {
   static{
     YarnConfiguration.addDefaultResource(MPI_DEFAULT_XML_FILE);
     YarnConfiguration.addDefaultResource(MPI_SITE_XML_FILE);
+    //MJR added
+    YarnConfiguration.addDefaultResource(YARN_SITE_XML_FILE);	
   }
 
   public MPIConfiguration() {

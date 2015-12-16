@@ -91,6 +91,7 @@ public class ApplicationMaster extends CompositeService {
   /*MJR added*/
   // Virtual cores to assign to each container and its affiliated MPI processes (i.e., on the same node)
   private int containerVCores = 1;
+  private boolean containerStrictResourceUsage = false; 
   /**/
   // Priority of the request
   private int requestPriority;
@@ -255,6 +256,8 @@ public class ApplicationMaster extends CompositeService {
     /*MJR added*/
     opts.addOption("container_vcores", true,
         "Number of virtual cores to be requested to run the shell command");
+    opts.addOption("container_strict_usage", true,
+        "Whether the YARN is configured to strictly enforce resource usage");
     /*END MJR*/
     opts.addOption("num_containers", true,
         "No. of containers on which the shell command needs to be executed");
@@ -420,7 +423,10 @@ public class ApplicationMaster extends CompositeService {
     /*MJR added*/
     containerVCores = Integer.parseInt(cliParser.getOptionValue(
         "container_vcores", "1"));
+    containerStrictResourceUsage = Boolean.parseBoolean(cliParser.getOptionValue(
+        "container_strict_usage", "false"));
     LOG.info("Container virtual core count is " + containerVCores);
+    LOG.info("Container strict resource usage enforced: " + containerStrictResourceUsage);
     /**/
     requestPriority = Integer.parseInt(cliParser
         .getOptionValue("priority", "0"));
@@ -813,11 +819,17 @@ public class ApplicationMaster extends CompositeService {
 	boolean mpiExecSuccess = launchMpiExecWrapper();
 
       LOG.info("mpiexec completed, wait for daemons doing clean-ups.");
+	//MJR added - now need to delete the memory cgroups that are manually created by the wrapper
+	//FIXME: Check and only do it if CGroups are enabled
+	launchMpiCleanupWrapper();
+
       mpdListener.setAmFinished();
       while (!mpdListener.isAllMPDFinished()){
         Utilities.sleep(PULL_INTERVAL);
       }
       LOG.info("daemons are all finished.");
+	
+	
 
       // When the application completes, it should send a finish application
       // signal
@@ -1125,6 +1137,12 @@ public class ApplicationMaster extends CompositeService {
     commandBuilder.append(hdfsContainerInfoAddr+" ");
     commandBuilder.append(mpiExecDir); 
     commandBuilder.append("/MPIExec");
+    commandBuilder.append(" "+containerMemory+"M");
+    if(containerStrictResourceUsage)	
+    	commandBuilder.append(" 1");//strict enforcing enabled - read from
+			      //yarn.nodemanager.linux-container-executor.cgroups.strict-resource-usage
+    else
+	commandBuilder.append(" 0");//non-strict 	
     	
     if (!mpiOptions.isEmpty()) {
       commandBuilder.append(" ");
@@ -1148,13 +1166,11 @@ public class ApplicationMaster extends CompositeService {
 
       commandBuilder.append(mpiOptions);
     }
-    //TODO Here we canceled mandatory host key checking, and may have potential risk for middle-man-attack
     String[] envs = {"PATH="+System.getenv("PATH"), "HYDRA_LAUNCHER_EXTRA_ARGS=-o StrictHostKeyChecking=no -i " + keypair_position};
     LOG.info("Executing command:" + commandBuilder.toString());
     File mpiPWD = new File(mpiExecDir);
     Runtime rt = Runtime.getRuntime();
  
-    //MJR added
     this.appendMsg("Running "+commandBuilder.toString()+ " on "+InetAddress.getLocalHost().getHostName());
 
     final Process pc = rt.exec(commandBuilder.toString(), envs, mpiPWD);
@@ -1197,6 +1213,89 @@ public class ApplicationMaster extends CompositeService {
       }
     } catch (InterruptedException e) {
       LOG.error("mpiexec Thread is nterruptted!", e);
+    }
+    return false;
+  }
+
+  
+  /*MJR added this function*/
+  /*FIXME: This function should be used only temporarily, and is used to cleanup memory cgroups
+  created by container_wrapper wrapper program.*/	 
+  private boolean launchMpiCleanupWrapper() throws IOException {
+    LOG.info("Launching mpiexec cleanup from the Application Master...");
+    Map<String, String> env = System.getenv();
+
+    StringBuilder commandBuilder = new StringBuilder(
+        "mpiexec -launcher ssh -hosts ");
+    Set<String> hosts = hostToProcNum.keySet();
+    boolean first = true;
+    for (String host : hosts) {
+      if (first) {
+        first = false;
+      } else {
+        commandBuilder.append(",");
+      }
+      commandBuilder.append(host);
+      commandBuilder.append(":");
+      commandBuilder.append(hostToProcNum.get(host));
+    }
+
+    commandBuilder.append(" ");
+
+    String wrapperPath = env.get(MPIConstants.AMJARLOCATION);//JobConf.findContainingJar(ApplicationMaster.class);
+    this.appendMsg("Cleanup wrapper path: "+wrapperPath);
+    int idx = wrapperPath.indexOf(MPIConstants.TARGETJARNAME);
+    commandBuilder.append(wrapperPath.substring(0,idx-1));
+
+    commandBuilder.append("/container_temp_cleanup ");
+    	
+    String[] envs = {"PATH="+System.getenv("PATH"), "HYDRA_LAUNCHER_EXTRA_ARGS=-o StrictHostKeyChecking=no -i " + keypair_position};
+    LOG.info("Executing command:" + commandBuilder.toString());
+    File mpiPWD = new File(mpiExecDir);
+    Runtime rt = Runtime.getRuntime();
+ 
+    this.appendMsg("Running "+commandBuilder.toString()+ " on "+InetAddress.getLocalHost().getHostName());
+
+    final Process pc = rt.exec(commandBuilder.toString(), envs, mpiPWD);
+
+    Thread stdinThread = new Thread(new Runnable() {
+      @Override
+      public void run() {
+        Scanner pcStdout = new Scanner(pc.getInputStream());
+        while (pcStdout.hasNextLine()) {
+          String line = "[stdout] " + pcStdout.nextLine();
+          LOG.info(line);
+          appendMsg(line);
+        }
+        pcStdout.close();
+      }
+    });
+    stdinThread.start();
+
+    Thread stderrThread = new Thread(new Runnable() {
+      @Override
+      public void run() {
+        Scanner pcStderr = new Scanner(pc.getErrorStream());
+        while (pcStderr.hasNextLine()) {
+          String line = "[stderr] " + pcStderr.nextLine();
+          LOG.info(line);
+          appendMsg(line);
+        }
+        pcStderr.close();
+      }
+    });
+    stderrThread.start();
+
+    try {
+      int ret = pc.waitFor();
+
+      if (ret != 0) {
+        return false;
+      } else {
+        return true;
+      }
+    } catch (InterruptedException e) {
+      LOG.error("cleanup mpiexec Thread is interruptted!", e);
     }
     return false;
   }

@@ -6,21 +6,12 @@ CGroups from this program. This program is used inside mpich2-yarn.*/
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <unistd.h>
 #include <assert.h>
 #include <libcgroup.h>
 #include <mpi.h>
 
-#define MAX_NODES	16
-#define MAX_NAME	100
-#define MAX_PATH	100
-/*FIXME soon: These fixed parameters should be taken from YARN config*/
-#define CGROUP_PATH_PREFIX	"/sys/fs/cgroup"
-#define CGROUP_HIERARCHY	"/yarn"
-
-#define CONTROLLER_CPU		"cpu"
-#define CONTROLLER_MEMORY	"memory"
-#define PRINT_FUNC_LINE	printf("%s: %d\n",__FUNCTION__,__LINE__);
-//#define PRINT_FUNC_LINE do{}while(0)
+#include "container_wrapper.h"
 
 char *create_cgroup_path(char *cgroup_name,char *name){
 	strcpy(cgroup_name,CGROUP_HIERARCHY);
@@ -29,8 +20,10 @@ char *create_cgroup_path(char *cgroup_name,char *name){
 	return cgroup_name;
 }
 
-void chmod_container(char cmd[],char controller[], char cgroup_name[]){
-	strcpy(cmd,"sudo chmod -R g+w ");
+void chmod_container(char cmd[],char controller[], char cgroup_name[],char *mode_str){
+	strcpy(cmd,"sudo chmod -R ");
+	strcat(cmd,mode_str);
+	strcat(cmd," ");
 	strcat(cmd,CGROUP_PATH_PREFIX);
 	strcat(cmd,"/");
 	strcat(cmd,controller);
@@ -39,12 +32,35 @@ void chmod_container(char cmd[],char controller[], char cgroup_name[]){
 }
 
 void set_cgroup_parameter(char cmd[],char cgroup_name[],char param[],char val[]){
-	strcpy(cmd,"cgset -r ");
+	strcpy(cmd,"sudo cgset -r ");
         strcat(cmd,param);
 	strcat(cmd,"=");
 	strcat(cmd,val);
 	strcat(cmd," ");
 	strcat(cmd,cgroup_name);//needs to have a leading slash (/)
+	system(cmd);
+}
+void create_cgroup_controller(char cmd[],char controller[],char cgroup_name[]){
+	strcpy(cmd,"sudo cgcreate -d 775 -f 775 -g ");
+	strcat(cmd,controller);
+	strcat(cmd,":");
+	strcat(cmd,cgroup_name);
+	strcat(cmd," -a yarn:hadoop");
+	system(cmd);
+	strcpy(cmd,"sudo chown yarn:hadoop ");
+	strcat(cmd,CGROUP_PATH_PREFIX);
+	strcat(cmd,"/");
+	strcat(cmd,controller);
+	strcat(cmd,cgroup_name);//needs to have a leading slash (/)
+	strcat(cmd,"/tasks");
+	system(cmd);
+}
+
+void delete_cgroup_controller(char cmd[],char controller[],char cgroup_name[]){
+	strcpy(cmd,"sudo cgdelete -g ");
+	strcat(cmd,controller);
+        strcat(cmd,":");
+        strcat(cmd,cgroup_name);
 	system(cmd);
 }
 
@@ -59,18 +75,21 @@ int main(int argc, char *argv[]){
 	int found = 0;
 	FILE *container_info;
 	char *cg_name;
-	int num_containers,proc_len,i = 0;
+	int num_containers,i = 0;
 	int ret = 0;
 	
 	printf("Starting MPI wrapper program ...\n");
-	if(gethostname(hostname,&proc_len)){
+	if(gethostname(hostname,MAX_NAME)){
 		perror("gethostname");
 		ret = errno;
 		goto exit_label;
 	}
 
-	/*int num_vcores = atoi(argv[2]);
-	bool strict_resource = DEFAULT_STRICT_RESOURCE_POLICY;*/
+	char *container_memory = argv[3];
+	bool strict_resource = false;
+	if(atoi(argv[4]))
+		strict_resource = true;
+	int mpi_args = 5;
 
 	/*MPI_Init(&argc,&argv);
 	int rank;
@@ -81,7 +100,6 @@ int main(int argc, char *argv[]){
 	strcpy(sys_cmd,"hdfs dfs -copyToLocal ");
 	strcat(sys_cmd,argv[1]);
 	strcat(sys_cmd," ./containerInfo.txt");
-	//printf("HDFS command: %s\n",sys_cmd);
 	system(sys_cmd);	
 	container_info = fopen("containerInfo.txt","r");
 	fscanf(container_info,"%s",hdfsAddress);
@@ -102,6 +120,7 @@ int main(int argc, char *argv[]){
 				break;
                 }
 	}
+//FIXME: Check YARN and only do it if CGRoups are enabled
 #ifdef ENABLE_CGROUPS
 	if(found){
 		if(cgroup_init()){
@@ -111,9 +130,19 @@ int main(int argc, char *argv[]){
 		/*Create a cgroup structure here, with the same name as the one created by YARN
 		conainer executor*/
 		create_cgroup_path(cgroup_name,containerName[i]);
-		chmod_container(sys_cmd,CONTROLLER_CPU,cgroup_name);
-		/*Memory controller currently not used in cgroups in YARN*/
-		//chmod_container(sys_cmd,CONTROLLER_MEMORY,cgroup_name);	
+		chmod_container(sys_cmd,CONTROLLER_CPU,cgroup_name,"g+w");
+		/*Since currently YARN does not create cgroup folders for memory controller, we need 
+		to create it manually, instead of only changing the permissions like the cpu controller	
+		Then we delete these memory cgroups after user program is done*/
+		/*FIXME: Deleteing memory cgroups currently happens in ApplicationMaster 
+		(launchMpiCleanupWrapper) by launching wrapper program/script container_temp_cleanup 
+		(colocated with this program). However,	that eventually needs to be done by YARN. 
+		Currently, this method of cleanup of memory CGroups has a bug. If the program is 
+		terminated / killed, the cleanup program is not run and memory CGroups for containers
+		stay in /sys/fs/cgroup/memory/yarn/ and need to be deleted by hand using:
+		 cgdelete -g memory:/yarn/<container_name>*/
+		create_cgroup_controller(sys_cmd,CONTROLLER_MEMORY,cgroup_name);
+		chmod_container(sys_cmd,CONTROLLER_MEMORY,cgroup_name,"g+w");	
 		
 		/*skipping the prefix*/
 		struct cgroup *cg = cgroup_new_cgroup(cgroup_name);
@@ -127,17 +156,19 @@ int main(int argc, char *argv[]){
 			printf("Error in cgroup_attach_task_pid: %d\n",ret);
 			goto exit_label;
 		}
+		if(strict_resource){
+			set_cgroup_parameter(sys_cmd,cgroup_name,"memory.limit_in_bytes",container_memory);
+		}else{
+			set_cgroup_parameter(sys_cmd,cgroup_name,"memory.soft_limit_in_bytes",container_memory);
+		}
+		chmod_container(sys_cmd,CONTROLLER_CPU,cgroup_name,"g-w");
+		chmod_container(sys_cmd,CONTROLLER_MEMORY,cgroup_name,"g-w");
+		cgroup_free(&cg);
 	}
 #endif
 	//MPI_Finalize();
-	if(argv[3]){
-		if(execv(argv[2],&argv[3]) < 0)
-			perror("Error in execv");
-	}
-	else{
-		if(execv(argv[2],NULL) < 0)
-                        perror("Error in execv");
-	}
+	if(execv(argv[2],&argv[mpi_args]))
+		perror("Error in execv");
 
 exit_label:
 	return ret;

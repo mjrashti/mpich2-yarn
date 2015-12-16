@@ -91,6 +91,7 @@ public class Client {
   /*MJR added*/
   // Virtual cores to assign to each container and its affiliated MPI processes (i.e., on the same node)
   private int containerVCores = 1;
+  private boolean containerStrictResourceUsage = false;
   /**/
   // No. of containers in which the shell script needs to be executed
   private int numContainers = 1;
@@ -188,6 +189,7 @@ public class Client {
     containerMemory = conf.getInt(MPIConfiguration.MPI_CONTAINER_MEMORY, 64);
     /*MJR added*/
     containerVCores = conf.getInt(MPIConfiguration.MPI_CONTAINER_VCORES, 1);
+    containerStrictResourceUsage = conf.getBoolean(MPIConfiguration.YARN_NM_CE_CG_STRICT_USAGE,false);
     /**/
     amPriority = conf.getInt(MPIConfiguration.MPI_AM_PRIORITY, 0);
     containerPriority = conf.getInt(MPIConfiguration.MPI_CONTAINER_PRIORITY, 0);
@@ -631,6 +633,7 @@ public class Client {
      vargs.add("--container_memory " + String.valueOf(containerMemory));
      /*MJR added*/
      vargs.add("--container_vcores " + String.valueOf(containerVCores));
+     vargs.add("--container_strict_usage " + String.valueOf(containerStrictResourceUsage));
      /**/
      vargs.add("--num_containers " + String.valueOf(numContainers));
      vargs.add("--priority " + String.valueOf(containerPriority));
