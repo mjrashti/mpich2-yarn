@@ -93,6 +93,8 @@ public class ApplicationMaster extends CompositeService {
   private int containerVCores = 1;
   private boolean containerStrictResourceUsage = false;
   private boolean cGroupsEnabled = false; 
+  private String cGroupsMountPath = "/sys/fs/cgroup";
+  private String cGroupsHierarchy = "/yarn"; 
   /**/
   // Priority of the request
   private int requestPriority;
@@ -261,6 +263,10 @@ public class ApplicationMaster extends CompositeService {
         "Whether the YARN is configured to strictly enforce resource usage");
     opts.addOption("cgroups_enabled", true,
         "Whether the YARN is configured to use cgroups to enforce resource usage");
+    opts.addOption("cgroups_mount_path", true,
+	"CGroups mount path");
+    opts.addOption("cgroups_hierarchy", true,
+	"YARN CGroups hierarchy");
     /*END MJR*/
     opts.addOption("num_containers", true,
         "No. of containers on which the shell command needs to be executed");
@@ -430,6 +436,8 @@ public class ApplicationMaster extends CompositeService {
         "cgroups_enabled", "false")); 
     containerStrictResourceUsage = Boolean.parseBoolean(cliParser.getOptionValue(
         "container_strict_usage", "false"));
+    cGroupsMountPath = cliParser.getOptionValue("cgroups_mount_path", "/sys/fs/cgroup");
+    cGroupsHierarchy = cliParser.getOptionValue("cgroups_hierarchy", "/yarn");
     LOG.info("Container virtual core count is " + containerVCores);
     LOG.info("Container cgroups enabled: "+cGroupsEnabled+" & strict resource usage enforced: " + containerStrictResourceUsage);
     /**/
@@ -820,8 +828,12 @@ public class ApplicationMaster extends CompositeService {
 
 	//MJR changed to use a wrapper program, in order to apply cgroups limits to the main 
 	//mpi program
-//      boolean mpiExecSuccess = launchMpiExec();
-	boolean mpiExecSuccess = launchMpiExecWrapper();
+        boolean mpiExecSuccess;
+
+	if(cGroupsEnabled) //Only run wrapper if cgroups are enabled
+		mpiExecSuccess = launchMpiExecWrapper();
+	else
+		mpiExecSuccess = launchMpiExec();
 
       LOG.info("mpiexec completed, wait for daemons doing clean-ups.");
 	//MJR added - now need to delete the memory cgroups that are manually created by the wrapper
@@ -1143,17 +1155,15 @@ public class ApplicationMaster extends CompositeService {
     commandBuilder.append(mpiExecDir); 
     commandBuilder.append("/MPIExec");
     commandBuilder.append(" "+containerMemory+"M");
-    if(cGroupsEnabled)
-        commandBuilder.append(" 1");
-    else
-	commandBuilder.append(" 0");
-    if(cGroupsEnabled && containerStrictResourceUsage)	
+    if(containerStrictResourceUsage)	
     	commandBuilder.append(" 1");//strict enforcing enabled - read from
-			      //yarn.nodemanager.linux-container-executor.cgroups.strict-resource-usage
+		      //yarn.nodemanager.linux-container-executor.cgroups.strict-resource-usage
     else
 	commandBuilder.append(" 0");//non-strict 
-		
-    	
+
+    commandBuilder.append(" "+cGroupsMountPath);
+    commandBuilder.append(" "+cGroupsHierarchy);
+			
     if (!mpiOptions.isEmpty()) {
       commandBuilder.append(" ");
       // replace the fileName with the hdfs path
@@ -1258,6 +1268,9 @@ public class ApplicationMaster extends CompositeService {
     commandBuilder.append(wrapperPath.substring(0,idx-1));
 
     commandBuilder.append("/container_temp_cleanup ");
+    commandBuilder.append(cGroupsMountPath+" ");
+    commandBuilder.append(cGroupsHierarchy+" ");   
+ 	
     	
     String[] envs = {"PATH="+System.getenv("PATH"), "HYDRA_LAUNCHER_EXTRA_ARGS=-o StrictHostKeyChecking=no -i " + keypair_position};
     LOG.info("Executing command:" + commandBuilder.toString());

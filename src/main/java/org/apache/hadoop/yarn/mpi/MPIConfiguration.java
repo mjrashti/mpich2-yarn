@@ -18,7 +18,12 @@ public class MPIConfiguration extends YarnConfiguration {
   /*MJR added*/
   public static final String MPI_CONTAINER_VCORES = "yarn.mpi.container.vcores";
   public static final String YARN_NM_CE_CG_STRICT_USAGE = "yarn.nodemanager.linux-container-executor.cgroups.strict-resource-usage";
+  //FIXME: This is probably not the best parameter to check cgroups enabled. But could not find a 
+  //param in yarn-site.xml that corresponds to "CPU isolation" feature on settings page of 
+  //YARN configurations
   public static final String YARN_NM_CE_ResourceHandler = "yarn.nodemanager.linux-container-executor.resources-handler.class";
+  public static final String YARN_NM_LCE_CG_MOUNT_PATH = "yarn.nodemanager.linux-container-executor.cgroups.mount-path";
+  public static final String YARN_NM_LCE_CG_HIERARCHY = "yarn.nodemanager.linux-container-executor.cgroups.hierarchy";
   /**/
 
   public static final String MPI_AM_PRIORITY = "yarn.mpi.appmaster.priority";

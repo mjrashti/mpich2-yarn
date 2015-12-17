@@ -13,6 +13,15 @@ CGroups from this program. This program is used inside mpich2-yarn.*/
 
 #include "container_wrapper.h"
 
+char hostname[MAX_NAME];
+char hdfsAddress[MAX_PATH];
+char containerHost[MAX_NODES][MAX_NAME];
+char containerName[MAX_NODES][MAX_NAME];
+char cgroup_name[MAX_PATH];
+char sys_cmd[MAX_PATH];
+char cgroups_mount_path[CG_PATH], cgroups_hierarchy[CG_PATH];
+
+
 char *create_cgroup_path(char *cgroup_name,char *name){
 	strcpy(cgroup_name,CGROUP_HIERARCHY);
 	strcat(cgroup_name,"/");
@@ -39,13 +48,6 @@ void delete_cgroup_controller(char cmd[],char controller[],char cgroup_name[]){
 	system(cmd);
 }
 
-char hostname[MAX_NAME];
-char hdfsAddress[MAX_PATH];
-char containerHost[MAX_NODES][MAX_NAME];
-char containerName[MAX_NODES][MAX_NAME];
-char cgroup_name[MAX_PATH];
-char sys_cmd[MAX_PATH];
-
 int main(int argc, char *argv[]){
 	int found = 0;
 	FILE *container_info;
@@ -62,6 +64,17 @@ int main(int argc, char *argv[]){
 	MPI_Init(&argc,&argv);
 	int rank;
 	MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+
+	if(argv[1])
+                strcpy(cgroups_mount_path,argv[1]);
+        else{
+                strcpy(cgroups_mount_path,CGROUP_PATH_PREFIX);
+        }
+        if(argv[2])
+                strcpy(cgroups_hierarchy,argv[2]);
+        else{
+                strcpy(cgroups_hierarchy,CGROUP_HIERARCHY);
+        }
 
 	container_info = fopen("containerInfo.txt","r");
 	fscanf(container_info,"%s",hdfsAddress);

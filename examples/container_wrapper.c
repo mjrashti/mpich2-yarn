@@ -13,8 +13,17 @@ CGroups from this program. This program is used inside mpich2-yarn.*/
 
 #include "container_wrapper.h"
 
+char hostname[MAX_NAME];
+char hdfsAddress[MAX_PATH];
+char containerHost[MAX_NODES][MAX_NAME];
+char containerName[MAX_NODES][MAX_NAME];
+char cgroup_name[MAX_PATH];
+char sys_cmd[MAX_PATH];
+char cgroups_mount_path[CG_PATH], cgroups_hierarchy[CG_PATH];
+
+
 char *create_cgroup_path(char *cgroup_name,char *name){
-	strcpy(cgroup_name,CGROUP_HIERARCHY);
+	strcpy(cgroup_name,cgroups_hierarchy);
 	strcat(cgroup_name,"/");
 	strcat(cgroup_name,name);
 	return cgroup_name;
@@ -24,7 +33,9 @@ void chmod_container(char cmd[],char controller[], char cgroup_name[],char *mode
 	strcpy(cmd,"sudo chmod -R ");
 	strcat(cmd,mode_str);
 	strcat(cmd," ");
-	strcat(cmd,CGROUP_PATH_PREFIX);
+	printf("%s - %s\n",cmd,cgroups_mount_path);
+	strcat(cmd,cgroups_mount_path);
+	printf("%s * %s\n",cmd,cgroups_mount_path);
 	strcat(cmd,"/");
 	strcat(cmd,controller);
         strcat(cmd,cgroup_name);//needs to have a leading slash (/)
@@ -48,7 +59,7 @@ void create_cgroup_controller(char cmd[],char controller[],char cgroup_name[]){
 	strcat(cmd," -a yarn:hadoop");
 	system(cmd);
 	strcpy(cmd,"sudo chown yarn:hadoop ");
-	strcat(cmd,CGROUP_PATH_PREFIX);
+	strcat(cmd,cgroups_mount_path);
 	strcat(cmd,"/");
 	strcat(cmd,controller);
 	strcat(cmd,cgroup_name);//needs to have a leading slash (/)
@@ -64,23 +75,20 @@ void delete_cgroup_controller(char cmd[],char controller[],char cgroup_name[]){
 	system(cmd);
 }
 
-char hostname[MAX_NAME];
-char hdfsAddress[MAX_PATH];
-char containerHost[MAX_NODES][MAX_NAME];
-char containerName[MAX_NODES][MAX_NAME];
-char cgroup_name[MAX_PATH];
-char sys_cmd[MAX_PATH];
-
 int main(int argc, char *argv[]){
 	int found = 0;
 	FILE *container_info;
 	char *cg_name;
 	int num_containers,i = 0;
 	int ret = 0;
-	bool strict_resource = false,cgroups_enabled = false;
+	bool strict_resource = false;
 	
 	char *container_memory = argv[3];
-	int mpi_args = 6;
+	int mpi_args = 7;
+
+	/*MPI_Init(&argc,&argv);
+        int rank;
+        MPI_Comm_rank(MPI_COMM_WORLD,&rank);*/
 
 	printf("Starting MPI wrapper program ...\n");
         if(gethostname(hostname,MAX_NAME)){
@@ -89,14 +97,23 @@ int main(int argc, char *argv[]){
                 goto exit_label;
         }
 
-	if(atoi(argv[4]) == 1)
-                cgroups_enabled = true;
-        if(atoi(argv[5]) == 1)
+        if(atoi(argv[4]) == 1)
                 strict_resource = true;
 
-	/*MPI_Init(&argc,&argv);
-	int rank;
-	MPI_Comm_rank(MPI_COMM_WORLD,&rank);*/
+	if(argv[5])
+		strcpy(cgroups_mount_path,argv[5]);
+	else{ 
+		mpi_args--;
+		strcpy(cgroups_mount_path,CGROUP_PATH_PREFIX);
+	}
+	if(argv[6])
+		strcpy(cgroups_hierarchy,argv[6]);
+	else{
+		mpi_args--;
+		strcpy(cgroups_hierarchy,CGROUP_HIERARCHY);
+	}
+
+	printf("* %s *** %s *\n",cgroups_mount_path,cgroups_hierarchy);
 
 	memset(containerName,0,MAX_NAME * MAX_NODES);
 	memset(containerHost,0,MAX_NAME * MAX_NODES);
@@ -123,7 +140,6 @@ int main(int argc, char *argv[]){
 				break;
                 }
 	}
-     if(cgroups_enabled){
 	if(found){
 		if(cgroup_init()){
 			perror("cgroup_init");
@@ -167,7 +183,6 @@ int main(int argc, char *argv[]){
 		chmod_container(sys_cmd,CONTROLLER_MEMORY,cgroup_name,"g-w");
 		cgroup_free(&cg);
 	}
-      }//cgroups_enabled
 
 	//MPI_Finalize();
 	if(execv(argv[2],&argv[mpi_args]))

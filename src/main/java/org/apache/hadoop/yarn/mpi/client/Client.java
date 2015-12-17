@@ -93,6 +93,8 @@ public class Client {
   private int containerVCores = 1;
   private boolean cGroupsEnabled = false;
   private boolean containerStrictResourceUsage = false;
+  private String cGroupsMountPath = "/sys/fs/cgroup";
+  private String cGroupsHierarchy = "/yarn";
   /**/
   // No. of containers in which the shell script needs to be executed
   private int numContainers = 1;
@@ -192,6 +194,8 @@ public class Client {
     containerVCores = conf.getInt(MPIConfiguration.MPI_CONTAINER_VCORES, 1);
     cGroupsEnabled = (conf.get(MPIConfiguration.YARN_NM_CE_ResourceHandler,"org.apache.hadoop.yarn.server.nodemanager.util.DefaultLCEResourcesHandler").equals("org.apache.hadoop.yarn.server.nodemanager.util.CgroupsLCEResourcesHandler"));	
     containerStrictResourceUsage = conf.getBoolean(MPIConfiguration.YARN_NM_CE_CG_STRICT_USAGE,false);
+    cGroupsMountPath = conf.get(MPIConfiguration.YARN_NM_LCE_CG_MOUNT_PATH);
+    cGroupsHierarchy = conf.get(MPIConfiguration.YARN_NM_LCE_CG_HIERARCHY);
     /**/
     amPriority = conf.getInt(MPIConfiguration.MPI_AM_PRIORITY, 0);
     containerPriority = conf.getInt(MPIConfiguration.MPI_CONTAINER_PRIORITY, 0);
@@ -637,6 +641,8 @@ public class Client {
      vargs.add("--container_vcores " + String.valueOf(containerVCores));
      vargs.add("--cgroups_enabled " + String.valueOf(cGroupsEnabled));	
      vargs.add("--container_strict_usage " + String.valueOf(containerStrictResourceUsage));
+     vargs.add("--cgroups_mount_path " + String.valueOf(cGroupsMountPath));
+     vargs.add("--cgroups_hierarchy " + String.valueOf(cGroupsHierarchy));
      /**/
      vargs.add("--num_containers " + String.valueOf(numContainers));
      vargs.add("--priority " + String.valueOf(containerPriority));

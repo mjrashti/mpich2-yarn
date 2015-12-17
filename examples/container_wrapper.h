@@ -2,12 +2,15 @@
 #define _CONTAINER_WRAPPER_H_
 
 #define MAX_NODES       16
-#define MAX_NAME        100
-#define MAX_PATH        100
-/*FIXME soon: These fixed parameters should be taken from YARN config*/
-#define CGROUP_PATH_PREFIX      "/sys/fs/cgroup"
+#define MAX_NAME        256
+#define MAX_PATH        256
+#define CG_PATH		20	
+/*FIXME soon: These fixed parameters should be taken from YARN config
+  If needed, kjust do it the same way parameters such as cgroups_enabled
+  or strict resource are passed in to container_wrapper
+*/
+#define CGROUP_PATH_PREFIX      "/sys/fs/cgroup"  //
 #define CGROUP_HIERARCHY        "/yarn"
-#define DEFAULT_STRICT_RESOURCE_POLICY true
 
 #define CONTROLLER_CPU          "cpu"
 #define CONTROLLER_MEMORY       "memory"
