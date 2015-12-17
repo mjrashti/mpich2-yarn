@@ -82,7 +82,6 @@ int main(int argc, char *argv[]){
 				break;
                 }
 	}
-#ifdef ENABLE_CGROUPS
 	/*Only one process per node does this. Now that we have MPI initialized, it is easy to manage*/
 	if(found /*&& (rank % num_containers == 0)*/){
 		/*Create a cgroup structure here, with the same name as the one created by YARN
@@ -95,7 +94,7 @@ int main(int argc, char *argv[]){
 		chmod_container(sys_cmd,CONTROLLER_MEMORY,cgroup_name,"g+w");
 		delete_cgroup_controller(sys_cmd,CONTROLLER_MEMORY,cgroup_name);
 	}
-#endif
+	MPI_Barrier(MPI_COMM_WORLD);
 	MPI_Finalize();
 
 exit_label:

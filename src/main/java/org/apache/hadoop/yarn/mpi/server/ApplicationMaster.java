@@ -91,7 +91,8 @@ public class ApplicationMaster extends CompositeService {
   /*MJR added*/
   // Virtual cores to assign to each container and its affiliated MPI processes (i.e., on the same node)
   private int containerVCores = 1;
-  private boolean containerStrictResourceUsage = false; 
+  private boolean containerStrictResourceUsage = false;
+  private boolean cGroupsEnabled = false; 
   /**/
   // Priority of the request
   private int requestPriority;
@@ -258,6 +259,8 @@ public class ApplicationMaster extends CompositeService {
         "Number of virtual cores to be requested to run the shell command");
     opts.addOption("container_strict_usage", true,
         "Whether the YARN is configured to strictly enforce resource usage");
+    opts.addOption("cgroups_enabled", true,
+        "Whether the YARN is configured to use cgroups to enforce resource usage");
     /*END MJR*/
     opts.addOption("num_containers", true,
         "No. of containers on which the shell command needs to be executed");
@@ -423,10 +426,12 @@ public class ApplicationMaster extends CompositeService {
     /*MJR added*/
     containerVCores = Integer.parseInt(cliParser.getOptionValue(
         "container_vcores", "1"));
+    cGroupsEnabled = Boolean.parseBoolean(cliParser.getOptionValue(
+        "cgroups_enabled", "false")); 
     containerStrictResourceUsage = Boolean.parseBoolean(cliParser.getOptionValue(
         "container_strict_usage", "false"));
     LOG.info("Container virtual core count is " + containerVCores);
-    LOG.info("Container strict resource usage enforced: " + containerStrictResourceUsage);
+    LOG.info("Container cgroups enabled: "+cGroupsEnabled+" & strict resource usage enforced: " + containerStrictResourceUsage);
     /**/
     requestPriority = Integer.parseInt(cliParser
         .getOptionValue("priority", "0"));
@@ -820,8 +825,8 @@ public class ApplicationMaster extends CompositeService {
 
       LOG.info("mpiexec completed, wait for daemons doing clean-ups.");
 	//MJR added - now need to delete the memory cgroups that are manually created by the wrapper
-	//FIXME: Check and only do it if CGroups are enabled
-	launchMpiCleanupWrapper();
+	if(cGroupsEnabled)
+		launchMpiCleanupWrapper();
 
       mpdListener.setAmFinished();
       while (!mpdListener.isAllMPDFinished()){
@@ -1138,11 +1143,16 @@ public class ApplicationMaster extends CompositeService {
     commandBuilder.append(mpiExecDir); 
     commandBuilder.append("/MPIExec");
     commandBuilder.append(" "+containerMemory+"M");
-    if(containerStrictResourceUsage)	
+    if(cGroupsEnabled)
+        commandBuilder.append(" 1");
+    else
+	commandBuilder.append(" 0");
+    if(cGroupsEnabled && containerStrictResourceUsage)	
     	commandBuilder.append(" 1");//strict enforcing enabled - read from
 			      //yarn.nodemanager.linux-container-executor.cgroups.strict-resource-usage
     else
-	commandBuilder.append(" 0");//non-strict 	
+	commandBuilder.append(" 0");//non-strict 
+		
     	
     if (!mpiOptions.isEmpty()) {
       commandBuilder.append(" ");

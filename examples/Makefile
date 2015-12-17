@@ -1,4 +1,4 @@
-CFLAGS= -DENABLE_CGROUPS
+CFLAGS= 
 CLIBS= -lcgroup
 
 SRC=$(wildcard *.c)

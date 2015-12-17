@@ -18,6 +18,7 @@ public class MPIConfiguration extends YarnConfiguration {
   /*MJR added*/
   public static final String MPI_CONTAINER_VCORES = "yarn.mpi.container.vcores";
   public static final String YARN_NM_CE_CG_STRICT_USAGE = "yarn.nodemanager.linux-container-executor.cgroups.strict-resource-usage";
+  public static final String YARN_NM_CE_ResourceHandler = "yarn.nodemanager.linux-container-executor.resources-handler.class";
   /**/
 
   public static final String MPI_AM_PRIORITY = "yarn.mpi.appmaster.priority";

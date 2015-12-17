@@ -77,19 +77,22 @@ int main(int argc, char *argv[]){
 	char *cg_name;
 	int num_containers,i = 0;
 	int ret = 0;
+	bool strict_resource = false,cgroups_enabled = false;
 	
-	printf("Starting MPI wrapper program ...\n");
-	if(gethostname(hostname,MAX_NAME)){
-		perror("gethostname");
-		ret = errno;
-		goto exit_label;
-	}
-
 	char *container_memory = argv[3];
-	bool strict_resource = false;
-	if(atoi(argv[4]))
-		strict_resource = true;
-	int mpi_args = 5;
+	int mpi_args = 6;
+
+	printf("Starting MPI wrapper program ...\n");
+        if(gethostname(hostname,MAX_NAME)){
+                perror("gethostname");
+                ret = errno;
+                goto exit_label;
+        }
+
+	if(atoi(argv[4]) == 1)
+                cgroups_enabled = true;
+        if(atoi(argv[5]) == 1)
+                strict_resource = true;
 
 	/*MPI_Init(&argc,&argv);
 	int rank;
@@ -120,8 +123,7 @@ int main(int argc, char *argv[]){
 				break;
                 }
 	}
-//FIXME: Check YARN and only do it if CGRoups are enabled
-#ifdef ENABLE_CGROUPS
+     if(cgroups_enabled){
 	if(found){
 		if(cgroup_init()){
 			perror("cgroup_init");
@@ -165,7 +167,8 @@ int main(int argc, char *argv[]){
 		chmod_container(sys_cmd,CONTROLLER_MEMORY,cgroup_name,"g-w");
 		cgroup_free(&cg);
 	}
-#endif
+      }//cgroups_enabled
+
 	//MPI_Finalize();
 	if(execv(argv[2],&argv[mpi_args]))
 		perror("Error in execv");

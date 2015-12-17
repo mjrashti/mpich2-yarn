@@ -91,6 +91,7 @@ public class Client {
   /*MJR added*/
   // Virtual cores to assign to each container and its affiliated MPI processes (i.e., on the same node)
   private int containerVCores = 1;
+  private boolean cGroupsEnabled = false;
   private boolean containerStrictResourceUsage = false;
   /**/
   // No. of containers in which the shell script needs to be executed
@@ -189,6 +190,7 @@ public class Client {
     containerMemory = conf.getInt(MPIConfiguration.MPI_CONTAINER_MEMORY, 64);
     /*MJR added*/
     containerVCores = conf.getInt(MPIConfiguration.MPI_CONTAINER_VCORES, 1);
+    cGroupsEnabled = (conf.get(MPIConfiguration.YARN_NM_CE_ResourceHandler,"org.apache.hadoop.yarn.server.nodemanager.util.DefaultLCEResourcesHandler").equals("org.apache.hadoop.yarn.server.nodemanager.util.CgroupsLCEResourcesHandler"));	
     containerStrictResourceUsage = conf.getBoolean(MPIConfiguration.YARN_NM_CE_CG_STRICT_USAGE,false);
     /**/
     amPriority = conf.getInt(MPIConfiguration.MPI_AM_PRIORITY, 0);
@@ -633,6 +635,7 @@ public class Client {
      vargs.add("--container_memory " + String.valueOf(containerMemory));
      /*MJR added*/
      vargs.add("--container_vcores " + String.valueOf(containerVCores));
+     vargs.add("--cgroups_enabled " + String.valueOf(cGroupsEnabled));	
      vargs.add("--container_strict_usage " + String.valueOf(containerStrictResourceUsage));
      /**/
      vargs.add("--num_containers " + String.valueOf(numContainers));
