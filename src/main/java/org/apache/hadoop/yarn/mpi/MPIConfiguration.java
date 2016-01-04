@@ -24,7 +24,7 @@ public class MPIConfiguration extends YarnConfiguration {
   public static final String YARN_NM_CE_ResourceHandler = "yarn.nodemanager.linux-container-executor.resources-handler.class";
   public static final String YARN_NM_LCE_CG_MOUNT_PATH = "yarn.nodemanager.linux-container-executor.cgroups.mount-path";
   public static final String YARN_NM_LCE_CG_HIERARCHY = "yarn.nodemanager.linux-container-executor.cgroups.hierarchy";
-  /**/
+  /*END MJR*/
 
   public static final String MPI_AM_PRIORITY = "yarn.mpi.appmaster.priority";
 

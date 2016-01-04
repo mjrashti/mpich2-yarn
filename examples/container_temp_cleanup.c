@@ -54,7 +54,8 @@ int main(int argc, char *argv[]){
 	char *cg_name;
 	int num_containers,i = 0;
 	int ret = 0;
-	
+
+#ifdef MANUAL_CGROUPS //wrapper manages cgroup cleanup - otherwise no need to do anything here	
 	if(gethostname(hostname,MAX_NAME)){
 		perror("gethostname");
 		ret = errno;
@@ -95,8 +96,7 @@ int main(int argc, char *argv[]){
 				break;
                 }
 	}
-	/*Only one process per node does this. Now that we have MPI initialized, it is easy to manage*/
-	if(found /*&& (rank % num_containers == 0)*/){
+	if(found){
 		/*Create a cgroup structure here, with the same name as the one created by YARN
 		conainer executor*/
 		create_cgroup_path(cgroup_name,containerName[i]);
@@ -109,6 +109,7 @@ int main(int argc, char *argv[]){
 	}
 	MPI_Barrier(MPI_COMM_WORLD);
 	MPI_Finalize();
+#endif
 
 exit_label:
 	return ret;

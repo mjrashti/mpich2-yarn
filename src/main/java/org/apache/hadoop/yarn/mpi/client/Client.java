@@ -95,6 +95,11 @@ public class Client {
   private boolean containerStrictResourceUsage = false;
   private String cGroupsMountPath = "/sys/fs/cgroup";
   private String cGroupsHierarchy = "/yarn";
+  private String mpiNameService = null;//for mpich it is the host name running hydra_nameserver
+                                        //for opnempi it is the service URI output of running
+                                        // ompi-server --no-daemonize -r + &
+                                        //It should be passed to yarn command using
+                                        //-s or --mpi-service option
   /**/
   // No. of containers in which the shell script needs to be executed
   private int numContainers = 1;
@@ -228,6 +233,8 @@ public class Client {
     /*MJR added*/	
     opts.addOption("c", "container-vcores", true,
         "Number of virtual cores to be requested to run the shell command");
+    opts.addOption("s","mpi-name-service", true,
+	"OpenMPI name server URI or MPICH hostname");
     /*END MJR*/
     opts.addOption("a", "mpi-application", true,
         "Location of the mpi application to be executed");
@@ -314,6 +321,10 @@ public class Client {
       throw new IllegalArgumentException(
           "Invalid core count specified for containers, exiting."
               + "Specified core count=" + containerVCores);
+    }
+    if (cliParser.hasOption("mpi-name-service")) {
+      mpiNameService = cliParser.getOptionValue(
+          "mpi-name-service", null);
     }
     /**/
     if (cliParser.hasOption("priority")) {
@@ -643,6 +654,7 @@ public class Client {
      vargs.add("--container_strict_usage " + String.valueOf(containerStrictResourceUsage));
      vargs.add("--cgroups_mount_path " + String.valueOf(cGroupsMountPath));
      vargs.add("--cgroups_hierarchy " + String.valueOf(cGroupsHierarchy));
+     vargs.add("--mpi_name_service " + String.valueOf(mpiNameService));
      /**/
      vargs.add("--num_containers " + String.valueOf(numContainers));
      vargs.add("--priority " + String.valueOf(containerPriority));

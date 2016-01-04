@@ -113,15 +113,21 @@ int main(int argc, char *argv[]){
 		strcpy(cgroups_hierarchy,CGROUP_HIERARCHY);
 	}
 
-	printf("* %s *** %s *\n",cgroups_mount_path,cgroups_hierarchy);
+	//printf("* %s *** %s *\n",cgroups_mount_path,cgroups_hierarchy);
 
 	memset(containerName,0,MAX_NAME * MAX_NODES);
 	memset(containerHost,0,MAX_NAME * MAX_NODES);
+
+#ifdef MANUAL_CGROUPS //wrapper manages cgroup membership
 	strcpy(sys_cmd,"hdfs dfs -copyToLocal ");
 	strcat(sys_cmd,argv[1]);
 	strcat(sys_cmd," ./containerInfo.txt");
 	system(sys_cmd);	
-	container_info = fopen("containerInfo.txt","r");
+	container_info = fopen("containerInfo.txt","r+");
+	if(!container_info){
+                perror("opening container info file");
+                goto exit_label;
+        }
 	fscanf(container_info,"%s",hdfsAddress);
 	fscanf(container_info,"%d",&num_containers);
 	while(!feof(container_info)){
@@ -133,18 +139,19 @@ int main(int argc, char *argv[]){
 	}
 	assert(i == num_containers);
 	fclose(container_info);
+
+	if(cgroup_init()){
+                        perror("cgroup_init");
+                        goto exit_label;
+        }
 	
 	for(i=0;i<num_containers;i++){
-		if(!strcmp(containerHost[i],hostname)){
-                               found = 1;
-				break;
-                }
+	  if(!strcmp(containerHost[i],hostname)){
+		found = 1;
+		break;
+	  }
 	}
 	if(found){
-		if(cgroup_init()){
-			perror("cgroup_init");
-			goto exit_label;
-		}
 		/*Create a cgroup structure here, with the same name as the one created by YARN
 		conainer executor*/
 		create_cgroup_path(cgroup_name,containerName[i]);
@@ -182,7 +189,31 @@ int main(int argc, char *argv[]){
 		chmod_container(sys_cmd,CONTROLLER_CPU,cgroup_name,"g-w");
 		chmod_container(sys_cmd,CONTROLLER_MEMORY,cgroup_name,"g-w");
 		cgroup_free(&cg);
-	}
+	}//if found
+#else   //wrapper lets container manage cgroup membership
+
+	/*FIXME:
+	Here, we only append PIDs to an hdfs file. This is probably not the best way to do it
+	and needs changed once we figure out what to do in YARN itself.
+	*/
+        char fname[MAX_PATH];
+        sprintf(fname,"pidInfo_%d.txt",getpid());
+        container_info = fopen(fname,"w");
+        if(!container_info){
+                perror("creating pid file");
+                goto exit_label;
+        }
+        fseek(container_info,0,SEEK_END);
+        fprintf(container_info,"ProcessID: %d\n",getpid());
+        fclose(container_info);
+
+        strcpy(sys_cmd,"hdfs dfs -appendToFile ");
+        strcat(sys_cmd,fname);
+	strcat(sys_cmd," ");
+        strcat(sys_cmd,argv[1]);
+        system(sys_cmd);
+        remove(fname);
+#endif
 
 	//MPI_Finalize();
 	if(execv(argv[2],&argv[mpi_args]))

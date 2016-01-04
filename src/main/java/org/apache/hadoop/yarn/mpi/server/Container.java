@@ -27,6 +27,10 @@ import java.util.concurrent.FutureTask;
 /*MJR added*/
 import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
+import java.net.InetAddress;
+import java.util.Scanner;
+import java.util.concurrent.LinkedBlockingQueue;
+import org.apache.hadoop.mapred.JobConf;
 
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
@@ -69,6 +73,12 @@ public class Container {
 
   private String appAttemptID;
 
+   //MJR added
+  // A queue that keep track of the mpi messages
+  private final LinkedBlockingQueue<String> mpiMsgs = new LinkedBlockingQueue<String>(
+      MPIConstants.MAX_LINE_LOGS);
+  private String mpiNameService = null;
+
   private Boolean downloadSave = false;
 
   private Collection<MPIResult> results;
@@ -85,6 +95,10 @@ public class Container {
 
   public boolean init(String[] args) throws ParseException, IOException {
     Options options = new Options();
+
+    //MJR added
+    mpiNameService = args[0].substring(args[0].indexOf("=") + 1,args[0].length());
+    //Log.info("mpiNameService = "+mpiNameService);
 
     containerId = new ContainerId(ConverterUtils.toContainerId(System
         .getenv(ApplicationConstants.Environment.CONTAINER_ID.toString())));
@@ -239,6 +253,118 @@ public class Container {
     mpiexecSame.setExecutable(true);
   }
 
+  /*MJR added these following function*/ 
+
+  public void appendMsg(String message) {
+    Boolean flag = mpiMsgs.offer(message);
+    if (!flag) {
+      LOG.warn("message queue is full");
+    }
+  }
+
+  //MJR added
+  private StringBuilder buildMpiCommand(String mpiImpl){
+    StringBuilder commandBuilder;
+    if(mpiImpl.equals("OPENMPI")){
+        commandBuilder = new StringBuilder("mpiexec -ompi-server \"");
+	commandBuilder.append(mpiNameService);
+        commandBuilder.append("\" -host localhost -n 1 ");
+    }else if(mpiImpl.equals("MPICH")){
+        commandBuilder = new StringBuilder("mpiexec -launcher ssh -nameserver ");
+	commandBuilder.append(mpiNameService);
+	commandBuilder.append(" -hosts localhost -np 1 ");
+    }
+    else return null;
+    return commandBuilder;	
+  }
+
+  private boolean launchMpiClient() throws IOException {
+    LOG.info("Launching mpi client process from the Container...");
+    this.appendMsg("Launching mpi client process from the Container...");
+    Map<String, String> env = System.getenv();
+    LOG.info("got env");
+    StringBuilder commandBuilder = buildMpiCommand(MPIConstants.YARN_MPI_IMPL);
+    if(commandBuilder == null){
+	return true;
+    }
+    commandBuilder.append(" ");
+
+    //String wrapperPath = env.get(MPIConstants.AMJARLOCATION);
+    //String wrapperPath = JobConf.findContainingJar(ApplicationMaster.class);
+	//FIXME NOW
+    String wrapperPath = "/data/home/mrashti/projects/informer_hpcc/mpich2-yarn/target/mpich2-yarn-1.0-SNAPSHOT.jar";
+
+
+    int idx = wrapperPath.indexOf(MPIConstants.TARGETJARNAME);
+
+
+    commandBuilder.append(wrapperPath.substring(0,idx-1));
+
+
+
+    commandBuilder.append("/test_mpi_connect_client ");
+
+
+    String[] envs = new String[1];
+    envs[0] = "PATH="+System.getenv("PATH");			
+    /*FIXME: How to get this keypair_position here?*/
+    /*if(MPIConstants.YARN_MPI_IMPL.equals("MPICH"))
+	envs[1] = "HYDRA_LAUNCHER_EXTRA_ARGS=-o StrictHostKeyChecking=no -i " + keypair_position;*/
+
+    LOG.info("Executing command:" + commandBuilder.toString());
+    String execDir = wrapperPath.substring(0,idx-1);
+    File execPWD = new File(execDir);
+    Runtime rt = Runtime.getRuntime();
+ 
+    LOG.info("Running "+commandBuilder.toString()+ " on "+InetAddress.getLocalHost().getHostName());
+
+    final Process pc = rt.exec(commandBuilder.toString(), envs, execPWD);
+
+    Thread stdinThread = new Thread(new Runnable() {
+      @Override
+      public void run() {
+        Scanner pcStdout = new Scanner(pc.getInputStream());
+        while (pcStdout.hasNextLine()) {
+          String line = "[stdout] " + pcStdout.nextLine();
+          LOG.info(line);
+	  appendMsg(line);
+        }
+        pcStdout.close();
+      }
+    });
+    stdinThread.start();
+
+    Thread stderrThread = new Thread(new Runnable() {
+      @Override
+      public void run() {
+        Scanner pcStderr = new Scanner(pc.getErrorStream());
+        while (pcStderr.hasNextLine()) {
+          String line = "[stderr] " + pcStderr.nextLine();
+          LOG.info(line);
+	  appendMsg(line);
+        }
+        pcStderr.close();
+      }
+    });
+    stderrThread.start();
+
+    try {
+      int ret = pc.waitFor();
+
+      if (ret != 0) {
+        return false;
+      } else {
+        return true;
+      }
+    } catch (InterruptedException e) {
+      LOG.error("mpiexec Thread is nterruptted!", e);
+    }
+
+  
+    return false;
+  }
+
+
   public Boolean run() throws IOException {
     // TODO Is there any outputs of daemons such as ssh?
 
@@ -277,6 +403,12 @@ public class Container {
       }
     };
     Runtime.getRuntime().addShutdownHook(keyCleanupHook);
+
+    //MJR added to run the mpi program from container//
+    LOG.info("mpiNameService: "+mpiNameService);
+    if(mpiNameService != null)
+	launchMpiClient(); 
+	
 
     LOG.info("Wait for the AM's signal.");
 

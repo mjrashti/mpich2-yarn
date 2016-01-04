@@ -1,4 +1,4 @@
-CFLAGS= 
+CFLAGS=  -DMANUAL_CGROUPS # -DMEMORY_CGROUPS 
 CLIBS= -lcgroup
 
 SRC=$(wildcard *.c)

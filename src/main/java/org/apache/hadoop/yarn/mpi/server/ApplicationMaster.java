@@ -23,6 +23,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 //MJR added
 import java.net.InetAddress;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.linux.privileged.PrivilegedOperationExecutor;
+import org.apache.hadoop.yarn.server.nodemanager.containermanager.linux.privileged.PrivilegedOperation;
+import org.apache.hadoop.yarn.server.nodemanager.util.CgroupsLCEResourcesHandler;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.GnuParser;
@@ -90,11 +93,17 @@ public class ApplicationMaster extends CompositeService {
   private int containerMemory = 10;
   /*MJR added*/
   // Virtual cores to assign to each container and its affiliated MPI processes (i.e., on the same node)
+  //following are default values
   private int containerVCores = 1;
   private boolean containerStrictResourceUsage = false;
   private boolean cGroupsEnabled = false; 
   private String cGroupsMountPath = "/sys/fs/cgroup";
-  private String cGroupsHierarchy = "/yarn"; 
+  private String cGroupsHierarchy = "/yarn";
+  public static String mpiNameService = null;//for mpich it is the host name running hydra_nameserver
+					//for opnempi it is the service URI output of running
+					// ompi-server --no-daemonize -r + &
+					//It should have been passed to yarn command using
+					//-s or --mpi-service option
   /**/
   // Priority of the request
   private int requestPriority;
@@ -267,6 +276,8 @@ public class ApplicationMaster extends CompositeService {
 	"CGroups mount path");
     opts.addOption("cgroups_hierarchy", true,
 	"YARN CGroups hierarchy");
+    opts.addOption("mpi_name_service", true,
+        "OpenMPI URI or MPICH Hydra nameserver hostname");
     /*END MJR*/
     opts.addOption("num_containers", true,
         "No. of containers on which the shell command needs to be executed");
@@ -438,6 +449,9 @@ public class ApplicationMaster extends CompositeService {
         "container_strict_usage", "false"));
     cGroupsMountPath = cliParser.getOptionValue("cgroups_mount_path", "/sys/fs/cgroup");
     cGroupsHierarchy = cliParser.getOptionValue("cgroups_hierarchy", "/yarn");
+    mpiNameService = cliParser.getOptionValue("mpi_name_service",null);
+    if(mpiNameService != null && mpiNameService.equals("null"))
+	mpiNameService = null;
     LOG.info("Container virtual core count is " + containerVCores);
     LOG.info("Container cgroups enabled: "+cGroupsEnabled+" & strict resource usage enforced: " + containerStrictResourceUsage);
     /**/
@@ -771,6 +785,17 @@ public class ApplicationMaster extends CompositeService {
     String hdfsTempAddr = envs.get(MPIConstants.MPITEMPLOCATION);
     containerInfoFile.write(hdfsTempAddr+"\n");	
     containerInfoFile.write(" "+distinctContainers.size()+"\n");
+
+    //If need to run service, do it now before containers run
+    if(cGroupsEnabled && (mpiNameService != null)){
+        launchMpiService();
+	/*try{
+		Thread.sleep(2000);
+	}catch(InterruptedException e){
+		e.printStackTrace();
+	}*/
+    }
+
     /*END MJR*/
 
     for (Container allocatedContainer : distinctContainers) {
@@ -786,7 +811,7 @@ public class ApplicationMaster extends CompositeService {
           + allocatedContainer.getResource().getMemory());
 
       Boolean result = launchContainerAsync(allocatedContainer,
-          splits.get(Integer.valueOf(allocatedContainer.getId().getId())), /*MJR FIXME: getId.getId  is deprecated, use long getContainerId*/
+          splits.get(Integer.valueOf(allocatedContainer.getId().getId())), /*MJR FIXME: getId.getId  is deprecated, use long getId().getContainerId*/
           resultToDestination.values());
 
       mpdListener.addContainer(new ContainerId(allocatedContainer.getId()));
@@ -830,14 +855,22 @@ public class ApplicationMaster extends CompositeService {
 	//mpi program
         boolean mpiExecSuccess;
 
-	if(cGroupsEnabled) //Only run wrapper if cgroups are enabled
-		mpiExecSuccess = launchMpiExecWrapper();
-	else
+	if(cGroupsEnabled){ //Only run wrapper if cgroups are enabled
+		if(mpiNameService == null){
+			this.appendMsg("Running wrapper");
+			mpiExecSuccess = launchMpiExecWrapper();
+			this.appendMsg("Done");
+		}else{
+			this.appendMsg("waiting for service");
+			mpiExecSuccess = waitForMpiService();
+			this.appendMsg("Done");
+		}
+	}else
 		mpiExecSuccess = launchMpiExec();
 
       LOG.info("mpiexec completed, wait for daemons doing clean-ups.");
 	//MJR added - now need to delete the memory cgroups that are manually created by the wrapper
-	if(cGroupsEnabled)
+	if(cGroupsEnabled && (mpiNameService == null))
 		launchMpiCleanupWrapper();
 
       mpdListener.setAmFinished();
@@ -1020,6 +1053,70 @@ public class ApplicationMaster extends CompositeService {
     }
   }
 
+  //MJR added
+  private StringBuilder buildCommand(Set<String> hosts,String mpiImpl){
+    StringBuilder commandBuilder;
+    if(mpiImpl.equals("OPENMPI")){
+        commandBuilder = new StringBuilder("mpiexec -host ");
+            boolean first = true;
+            int numProcs = 0;
+            for (String host : hosts) {
+              if (first) {
+                first = false;
+              } else {
+                commandBuilder.append(",");
+              }
+              commandBuilder.append(host);
+              numProcs += hostToProcNum.get(host);
+            }
+            commandBuilder.append(" -bynode -n "+numProcs);
+    }else if(mpiImpl.equals("MPICH")){
+        commandBuilder = new StringBuilder("mpiexec -launcher ssh -hosts ");
+            boolean first = true;
+            for (String host : hosts) {
+              if (first) {
+                first = false;
+              } else {
+                commandBuilder.append(",");
+              }
+              commandBuilder.append(host);
+              commandBuilder.append(":");
+              commandBuilder.append(hostToProcNum.get(host));
+        }
+    }
+    else return null;
+    return commandBuilder;	
+  }
+
+
+  //MJR added
+  private StringBuilder buildServiceCommand(Set<String> hosts,String mpiImpl){
+    StringBuilder commandBuilder;
+    if(mpiNameService == null)
+	return null;
+    this.appendMsg("MPI name service "+mpiNameService);
+    if(mpiImpl.equals("OPENMPI")){
+        commandBuilder = new StringBuilder("mpiexec -ompi-server \"");
+	commandBuilder.append(mpiNameService);
+        commandBuilder.append("\" -host ");
+        for (String host : hosts) {
+             	commandBuilder.append(host);
+	     	break;	
+        }
+        commandBuilder.append(" -n 1");
+    }else if(mpiImpl.equals("MPICH")){
+        commandBuilder = new StringBuilder("mpiexec -launcher ssh -nameserver ");
+	commandBuilder.append(mpiNameService);
+	commandBuilder.append(" -hosts ");
+        for (String host : hosts) {
+		commandBuilder.append(host);
+             	break;
+        }
+	commandBuilder.append(" -np 1");
+    }
+    else return null;
+    return commandBuilder;	
+  }
   /**
    * Application Master launches "mpiexec" process locally
    *
@@ -1030,7 +1127,13 @@ public class ApplicationMaster extends CompositeService {
   private boolean launchMpiExec() throws IOException {
     LOG.info("Launching mpiexec from the Application Master...");
 
-    StringBuilder commandBuilder = new StringBuilder(
+    //MJR changed the following commented code to this code
+    Set<String> hosts = hostToProcNum.keySet();
+    StringBuilder commandBuilder = buildCommand(hosts,MPIConstants.YARN_MPI_IMPL);
+    if(commandBuilder == null){
+        return true;
+    }
+    /*StringBuilder commandBuilder = new StringBuilder(
         "mpiexec -launcher ssh -hosts ");
     Set<String> hosts = hostToProcNum.keySet();
     boolean first = true;
@@ -1044,7 +1147,7 @@ public class ApplicationMaster extends CompositeService {
       commandBuilder.append(":");
       commandBuilder.append(hostToProcNum.get(host));
     }
-
+    */
     commandBuilder.append(" ");
     commandBuilder.append(mpiExecDir);
     commandBuilder.append("/MPIExec");
@@ -1071,12 +1174,23 @@ public class ApplicationMaster extends CompositeService {
       commandBuilder.append(mpiOptions);
     }
     //TODO Here we canceled mandatory host key checking, and may have potential risk for middle-man-attack
-    String[] envs = {"PATH="+System.getenv("PATH"), "HYDRA_LAUNCHER_EXTRA_ARGS=-o StrictHostKeyChecking=no -i " + keypair_position};
+    //MJR changed to reflect the MPI IMPLEMENTATION	
+    //String[] envs = {"PATH="+System.getenv("PATH"), "HYDRA_LAUNCHER_EXTRA_ARGS=-o StrictHostKeyChecking=no -i " + keypair_position};
+    String[] envs;
+    if(MPIConstants.YARN_MPI_IMPL.equals("MPICH")){
+	envs = new String[2];
+	envs[0] = "PATH="+System.getenv("PATH");
+	envs[1] = "HYDRA_LAUNCHER_EXTRA_ARGS=-o StrictHostKeyChecking=no -i " + keypair_position;
+    }else{
+	envs = new String[1];
+	envs[0] = "PATH="+System.getenv("PATH");
+    }
+    
     LOG.info("Executing command:" + commandBuilder.toString());
     File mpiPWD = new File(mpiExecDir);
     Runtime rt = Runtime.getRuntime();
  
-    //MJr added
+    //MJR added
     System.out.println("Running "+commandBuilder.toString()+ " on "+InetAddress.getLocalHost().getHostName());
 
     final Process pc = rt.exec(commandBuilder.toString(), envs, mpiPWD);
@@ -1125,22 +1239,13 @@ public class ApplicationMaster extends CompositeService {
 
   /*MJR added this function*/ 
   private boolean launchMpiExecWrapper() throws IOException {
-    LOG.info("Launching mpiexec from the Application Master...");
+    LOG.info("Launching mpiexec wrapper from the Application Master...");
     Map<String, String> env = System.getenv();
-
-    StringBuilder commandBuilder = new StringBuilder(
-        "mpiexec -launcher ssh -hosts ");
     Set<String> hosts = hostToProcNum.keySet();
-    boolean first = true;
-    for (String host : hosts) {
-      if (first) {
-        first = false;
-      } else {
-        commandBuilder.append(",");
-      }
-      commandBuilder.append(host);
-      commandBuilder.append(":");
-      commandBuilder.append(hostToProcNum.get(host));
+
+    StringBuilder commandBuilder = buildCommand(hosts,MPIConstants.YARN_MPI_IMPL);
+    if(commandBuilder == null){
+	return true;
     }
 
     commandBuilder.append(" ");
@@ -1186,7 +1291,17 @@ public class ApplicationMaster extends CompositeService {
 
       commandBuilder.append(mpiOptions);
     }
-    String[] envs = {"PATH="+System.getenv("PATH"), "HYDRA_LAUNCHER_EXTRA_ARGS=-o StrictHostKeyChecking=no -i " + keypair_position};
+     
+    String[] envs;
+    if(MPIConstants.YARN_MPI_IMPL.equals("MPICH")){
+	 envs = new String[2];
+	 envs[0] = "PATH="+System.getenv("PATH");
+	 envs[1] = "HYDRA_LAUNCHER_EXTRA_ARGS=-o StrictHostKeyChecking=no -i " + keypair_position;
+    }else{
+	envs = new String[1];
+	envs[0] = "PATH="+System.getenv("PATH");
+    }
+
     LOG.info("Executing command:" + commandBuilder.toString());
     File mpiPWD = new File(mpiExecDir);
     Runtime rt = Runtime.getRuntime();
@@ -1244,20 +1359,11 @@ public class ApplicationMaster extends CompositeService {
   private boolean launchMpiCleanupWrapper() throws IOException {
     LOG.info("Launching mpiexec cleanup from the Application Master...");
     Map<String, String> env = System.getenv();
-
-    StringBuilder commandBuilder = new StringBuilder(
-        "mpiexec -launcher ssh -hosts ");
     Set<String> hosts = hostToProcNum.keySet();
-    boolean first = true;
-    for (String host : hosts) {
-      if (first) {
-        first = false;
-      } else {
-        commandBuilder.append(",");
-      }
-      commandBuilder.append(host);
-      commandBuilder.append(":");
-      commandBuilder.append(hostToProcNum.get(host));
+
+    StringBuilder commandBuilder = buildCommand(hosts,MPIConstants.YARN_MPI_IMPL);
+    if(commandBuilder == null){
+        return true;
     }
 
     commandBuilder.append(" ");
@@ -1272,7 +1378,16 @@ public class ApplicationMaster extends CompositeService {
     commandBuilder.append(cGroupsHierarchy+" ");   
  	
     	
-    String[] envs = {"PATH="+System.getenv("PATH"), "HYDRA_LAUNCHER_EXTRA_ARGS=-o StrictHostKeyChecking=no -i " + keypair_position};
+    String[] envs;
+    if(MPIConstants.YARN_MPI_IMPL.equals("MPICH")){
+        envs = new String[2];
+        envs[0] = "PATH="+System.getenv("PATH");
+        envs[1] = "HYDRA_LAUNCHER_EXTRA_ARGS=-o StrictHostKeyChecking=no -i " + keypair_position;
+    }else{
+        envs = new String[1];
+        envs[0] = "PATH="+System.getenv("PATH");
+    }
+
     LOG.info("Executing command:" + commandBuilder.toString());
     File mpiPWD = new File(mpiExecDir);
     Runtime rt = Runtime.getRuntime();
@@ -1322,6 +1437,97 @@ public class ApplicationMaster extends CompositeService {
     }
     return false;
   }
+
+  
+  
+  /*MJR added these functions & ...*/
+  private Process pcService;
+ 
+  private boolean launchMpiService() throws IOException {
+    LOG.info("Launching mpi service from the Application Master...");
+    Map<String, String> env = System.getenv();
+    Set<String> hosts = hostToProcNum.keySet();
+
+    StringBuilder commandBuilder = buildServiceCommand(hosts,MPIConstants.YARN_MPI_IMPL);
+    if(commandBuilder == null){
+	return true;
+    }
+
+    commandBuilder.append(" ");
+
+    String wrapperPath = env.get(MPIConstants.AMJARLOCATION);//JobConf.findContainingJar(ApplicationMaster.class);
+    this.appendMsg("Wrapper path: "+wrapperPath);
+    int idx = wrapperPath.indexOf(MPIConstants.TARGETJARNAME);
+    commandBuilder.append(wrapperPath.substring(0,idx-1));
+
+    commandBuilder.append("/test_mpi_connect_server ");
+
+
+    String[] envs;
+    if(MPIConstants.YARN_MPI_IMPL.equals("MPICH")){
+        envs = new String[2];
+        envs[0] = "PATH="+System.getenv("PATH");
+        envs[1] = "HYDRA_LAUNCHER_EXTRA_ARGS=-o StrictHostKeyChecking=no -i " + keypair_position;
+    }else{
+        envs = new String[1];
+        envs[0] = "PATH="+System.getenv("PATH");
+    }
+
+    LOG.info("Executing command:" + commandBuilder.toString());
+    File mpiPWD = new File(wrapperPath.substring(0,idx-1));
+    Runtime rt = Runtime.getRuntime();
+ 
+    this.appendMsg("Running "+commandBuilder.toString()+ " on "+InetAddress.getLocalHost().getHostName());
+
+    //pcService = rt.exec(commandBuilder.toString(), envs, mpiPWD);
+    pcService = rt.exec(commandBuilder.toString());
+  
+    Thread stdinThread = new Thread(new Runnable() {
+      @Override
+      public void run() {
+        Scanner pcStdout = new Scanner(pcService.getInputStream());
+        while (pcStdout.hasNextLine()) {
+          String line = "[stdout] " + pcStdout.nextLine();
+          LOG.info(line);
+          appendMsg(line);
+        }
+        pcStdout.close();
+      }
+    });
+    stdinThread.start();
+
+    Thread stderrThread = new Thread(new Runnable() {
+      @Override
+      public void run() {
+        Scanner pcStderr = new Scanner(pcService.getErrorStream());
+        while (pcStderr.hasNextLine()) {
+          String line = "[stderr] " + pcStderr.nextLine();
+          LOG.info(line);
+          appendMsg(line);
+        }
+        pcStderr.close();
+      }
+    });
+    stderrThread.start();
+   return false;
+  }
+
+ private boolean waitForMpiService() throws IOException {
+    try {
+      int ret = pcService.waitFor();
+
+      if (ret != 0) {
+        return false;
+      } else {
+        return true;
+      }
+    } catch (InterruptedException e) {
+      LOG.error("mpiexec Thread is nterruptted!", e);
+    }
+    return false;
+  }
+
+  /*END MJR added*/
 
   /**
    * Async Method telling NMClientAsync to launch specific container
@@ -1422,6 +1628,25 @@ public class ApplicationMaster extends CompositeService {
       vargs.add(javaOpts);
     }
     vargs.add("org.apache.hadoop.yarn.mpi.server.Container");
+
+    //MJR added
+    String nameService = "";//"\""; 	
+    if(mpiNameService == null)
+	nameService = null;
+    else{
+	int idx = mpiNameService.indexOf(";");
+	if(idx >= 0){
+		nameService = mpiNameService.substring(0,idx);
+		nameService = nameService + "\\";
+		nameService = nameService + mpiNameService.substring(idx,mpiNameService.length());
+		//nameService = nameService + "\"";
+    	}
+    }	
+
+    //nameService += mpiNameService + "\"";
+    
+
+    vargs.add("mpiNameService="+nameService);
     // vargs.add("-p " + port);
     // vargs.add("-f " + phrase);
     // Add log redirect params
