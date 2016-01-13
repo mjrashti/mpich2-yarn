@@ -789,11 +789,6 @@ public class ApplicationMaster extends CompositeService {
     //If need to run service, do it now before containers run
     if(cGroupsEnabled && (mpiNameService != null)){
         launchMpiService();
-	/*try{
-		Thread.sleep(2000);
-	}catch(InterruptedException e){
-		e.printStackTrace();
-	}*/
     }
 
     /*END MJR*/
@@ -861,7 +856,7 @@ public class ApplicationMaster extends CompositeService {
 			mpiExecSuccess = launchMpiExecWrapper();
 			this.appendMsg("Done");
 		}else{
-			this.appendMsg("waiting for service");
+			this.appendMsg("waiting for service to complete");
 			mpiExecSuccess = waitForMpiService();
 			this.appendMsg("Done");
 		}
@@ -1460,7 +1455,8 @@ public class ApplicationMaster extends CompositeService {
     int idx = wrapperPath.indexOf(MPIConstants.TARGETJARNAME);
     commandBuilder.append(wrapperPath.substring(0,idx-1));
 
-    commandBuilder.append("/test_mpi_connect_server ");
+    //commandBuilder.append("/test_mpi_connect_server ");
+    commandBuilder.append("/yarn_mpi_server "+numTotalContainers);
 
 
     String[] envs;
@@ -1476,11 +1472,10 @@ public class ApplicationMaster extends CompositeService {
     LOG.info("Executing command:" + commandBuilder.toString());
     File mpiPWD = new File(wrapperPath.substring(0,idx-1));
     Runtime rt = Runtime.getRuntime();
- 
     this.appendMsg("Running "+commandBuilder.toString()+ " on "+InetAddress.getLocalHost().getHostName());
 
-    //pcService = rt.exec(commandBuilder.toString(), envs, mpiPWD);
-    pcService = rt.exec(commandBuilder.toString());
+    pcService = rt.exec(commandBuilder.toString(), envs, mpiPWD);
+    //pcService = rt.exec(commandBuilder.toString());
   
     Thread stdinThread = new Thread(new Runnable() {
       @Override
@@ -1630,7 +1625,10 @@ public class ApplicationMaster extends CompositeService {
     vargs.add("org.apache.hadoop.yarn.mpi.server.Container");
 
     //MJR added
-    String nameService = "";//"\""; 	
+   String nameService;
+   if(MPIConstants.YARN_MPI_IMPL.equals("OPENMPI")){
+    nameService = "";//"\""; 	
+ 
     if(mpiNameService == null)
 	nameService = null;
     else{
@@ -1642,6 +1640,8 @@ public class ApplicationMaster extends CompositeService {
 		//nameService = nameService + "\"";
     	}
     }	
+   }else	
+	nameService = mpiNameService;
 
     //nameService += mpiNameService + "\"";
     

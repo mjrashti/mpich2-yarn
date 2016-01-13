@@ -10,8 +10,8 @@ public class MPIConstants {
    * Environment key name pointing to the mpi's temp hdfs location (folder)
    */
   public static final String MPITEMPLOCATION = "MPITEMPLOCATION";
-  public static final String YARN_MPI_IMPL      =       "OPENMPI";
-  //public static final String YARN_MPI_IMPL      =       "MPICH";
+  //public static final String YARN_MPI_IMPL      =       "OPENMPI";
+  public static final String YARN_MPI_IMPL      =       "MPICH";
 
   public static final boolean YARN_USE_MPI_SERVICE = false;
   /*END MJR*/

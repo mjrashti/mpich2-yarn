@@ -28,6 +28,7 @@ import java.util.concurrent.FutureTask;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Scanner;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.hadoop.mapred.JobConf;
@@ -268,11 +269,21 @@ public class Container {
     if(mpiImpl.equals("OPENMPI")){
         commandBuilder = new StringBuilder("mpiexec -ompi-server \"");
 	commandBuilder.append(mpiNameService);
-        commandBuilder.append("\" -host localhost -n 1 ");
+	try{
+        	commandBuilder.append("\" -host "+InetAddress.getLocalHost().getHostName()+" -n 1 ");
+	}catch(UnknownHostException e){
+		e.printStackTrace();
+		return null;
+	}
     }else if(mpiImpl.equals("MPICH")){
         commandBuilder = new StringBuilder("mpiexec -launcher ssh -nameserver ");
 	commandBuilder.append(mpiNameService);
-	commandBuilder.append(" -hosts localhost -np 1 ");
+	try{
+		commandBuilder.append(" -hosts "+InetAddress.getLocalHost().getHostName()+" -np 1 ");
+	}catch(UnknownHostException e){
+                e.printStackTrace();
+                return null;
+        }
     }
     else return null;
     return commandBuilder;	
@@ -289,6 +300,7 @@ public class Container {
     }
     commandBuilder.append(" ");
 
+/*
     //String wrapperPath = env.get(MPIConstants.AMJARLOCATION);
     //String wrapperPath = JobConf.findContainingJar(ApplicationMaster.class);
 	//FIXME NOW
@@ -300,9 +312,11 @@ public class Container {
 
     commandBuilder.append(wrapperPath.substring(0,idx-1));
 
-
-
     commandBuilder.append("/test_mpi_connect_client ");
+*/
+
+    commandBuilder.append(env.get("MPIEXECDIR"));
+    commandBuilder.append("/MPIExec");
 
 
     String[] envs = new String[1];
@@ -312,7 +326,7 @@ public class Container {
 	envs[1] = "HYDRA_LAUNCHER_EXTRA_ARGS=-o StrictHostKeyChecking=no -i " + keypair_position;*/
 
     LOG.info("Executing command:" + commandBuilder.toString());
-    String execDir = wrapperPath.substring(0,idx-1);
+    String execDir = env.get("MPIEXECDIR");//wrapperPath.substring(0,idx-1);
     File execPWD = new File(execDir);
     Runtime rt = Runtime.getRuntime();
  
