@@ -1646,6 +1646,7 @@ public class ApplicationMaster extends CompositeService {
     //nameService += mpiNameService + "\"";
     
 
+    vargs.add(" "+numTotalContainers/distinctContainers.size());
     vargs.add("mpiNameService="+nameService);
     // vargs.add("-p " + port);
     // vargs.add("-f " + phrase);

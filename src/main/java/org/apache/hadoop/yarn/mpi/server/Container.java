@@ -79,6 +79,7 @@ public class Container {
   private final LinkedBlockingQueue<String> mpiMsgs = new LinkedBlockingQueue<String>(
       MPIConstants.MAX_LINE_LOGS);
   private String mpiNameService = null;
+  private int numMpiProcs = 1;
 
   private Boolean downloadSave = false;
 
@@ -98,7 +99,8 @@ public class Container {
     Options options = new Options();
 
     //MJR added
-    mpiNameService = args[0].substring(args[0].indexOf("=") + 1,args[0].length());
+    numMpiProcs = Integer.parseInt(args[0]);
+    mpiNameService = args[1].substring(args[1].indexOf("=") + 1,args[1].length());
     //Log.info("mpiNameService = "+mpiNameService);
 
     containerId = new ContainerId(ConverterUtils.toContainerId(System
@@ -270,7 +272,7 @@ public class Container {
         commandBuilder = new StringBuilder("mpiexec -ompi-server \"");
 	commandBuilder.append(mpiNameService);
 	try{
-        	commandBuilder.append("\" -host "+InetAddress.getLocalHost().getHostName()+" -n 1 ");
+        	commandBuilder.append("\" -host "+InetAddress.getLocalHost().getHostName()+" -n "+numMpiProcs+" ");
 	}catch(UnknownHostException e){
 		e.printStackTrace();
 		return null;
@@ -279,7 +281,7 @@ public class Container {
         commandBuilder = new StringBuilder("mpiexec -launcher ssh -nameserver ");
 	commandBuilder.append(mpiNameService);
 	try{
-		commandBuilder.append(" -hosts "+InetAddress.getLocalHost().getHostName()+" -np 1 ");
+		commandBuilder.append(" -hosts "+InetAddress.getLocalHost().getHostName()+" -np  "+numMpiProcs+" ");
 	}catch(UnknownHostException e){
                 e.printStackTrace();
                 return null;
