@@ -42,6 +42,7 @@
 			<artifactId>hadoop-yarn-client</artifactId>
 			<version>2.4.0</version>
 		</dependency>
+		<!-- This dependency added by MJR -->
 		<dependency>
                         <groupId>org.apache.hadoop</groupId>
                         <artifactId>hadoop-yarn-server-nodemanager</artifactId>

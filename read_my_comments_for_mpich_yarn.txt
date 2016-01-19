@@ -33,7 +33,7 @@ $export HADOOP_USER_NAME=<the user>
 - in mpi-site.xml, set yarn.mpi.ssh.authorizedkeys.path to /home/<the user>/.ssh/authorized_keys
 
 Also make sure mpich2 is in the path:
-export PATH=/opt/mpich-3.1.2_install/bin/:$PATH
+export PATH=/opt/mpich-3.2_install/bin/:$PATH
 
 And here is an example of running logstic regression in Smart over Yarn:
 (/data/home/mrashti/projects/informer_hpcc/Smart/examples/offline_analytics)
